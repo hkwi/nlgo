@@ -489,6 +489,10 @@ func NlSocketAddMembership(sk *NlSock, group int) error {
 	return syscall.SetsockoptInt(sk.Fd, SOL_NETLINK, syscall.NETLINK_ADD_MEMBERSHIP, group)
 }
 
+func NlSocketDropMembership(sk *NlSock, group int) error {
+	return syscall.SetsockoptInt(sk.Fd, SOL_NETLINK, syscall.NETLINK_DROP_MEMBERSHIP, group)
+}
+
 // msg.c
 
 const NL_AUTO_PORT = 0
