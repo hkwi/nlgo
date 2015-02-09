@@ -1,3 +1,11 @@
+/*
+ * nlgo package implements netlink library routines.
+ *
+ * This was golang port of libnl. For basic concept, please have a look at
+ * original libnl documentation http://www.infradead.org/~tgr/libnl/.
+ *
+ *
+ */
 package nlgo
 
 import (
