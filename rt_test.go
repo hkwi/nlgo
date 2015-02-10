@@ -12,11 +12,11 @@ func Example() {
 	if err := nlgo.NlConnect(sock, syscall.NETLINK_ROUTE); err != nil {
 		panic(err)
 	}
-	defer func(){
+	defer func() {
 		nlgo.NlSocketFree(sock)
 	}()
 	req := make([]byte, nlgo.NLMSG_ALIGN(syscall.SizeofIfInfomsg))
-	if err:=nlgo.NlSendSimple(sock, syscall.RTM_GETLINK, syscall.NLM_F_DUMP, req); err!=nil {
+	if err := nlgo.NlSendSimple(sock, syscall.RTM_GETLINK, syscall.NLM_F_DUMP, req); err != nil {
 		panic(err)
 	}
 	buf := make([]byte, syscall.Getpagesize())
@@ -54,7 +54,7 @@ func ExampleNlSocketAddMembership() {
 	if err := nlgo.NlConnect(sock, syscall.NETLINK_ROUTE); err != nil {
 		panic(err)
 	}
-	defer func(){
+	defer func() {
 		nlgo.NlSocketFree(sock)
 	}()
 	if err := nlgo.NlSocketAddMembership(sock, syscall.RTNLGRP_LINK); err != nil {
