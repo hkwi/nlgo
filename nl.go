@@ -7,6 +7,7 @@ package nlgo
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -154,6 +155,10 @@ func (self SimplePolicy) ParseOne(nla []byte) (attr Attr, err error) {
 		attr.Value = string(bytes.Split(nla[NLA_HDRLEN:hdr.Len], []byte{0})[0])
 	}
 	return
+}
+
+func NlaStringEquals(a, b string) bool {
+	return strings.Split(a, "\x00")[0] == strings.Split(b, "\x00")[0]
 }
 
 type ListPolicy struct {
