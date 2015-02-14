@@ -7,6 +7,7 @@ package nlgo
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"sync"
 	"syscall"
@@ -33,11 +34,15 @@ type Attr struct {
 	Value  interface{}
 }
 
+func (self Attr) Field() uint16 {
+	return self.Header.Type & NLA_TYPE_MASK
+}
+
 type AttrList []Attr
 
 func (self AttrList) Get(field uint16) interface{} {
 	for _, attr := range []Attr(self) {
-		if (attr.Header.Type & NLA_TYPE_MASK) == field {
+		if attr.Field() == field {
 			return attr.Value
 		}
 	}
@@ -198,9 +203,29 @@ func (self ListPolicy) Parse(buf []byte) (AttrList, error) {
 	return ret, nil
 }
 
+func (self ListPolicy) Dump(attrs AttrList) string {
+	var comps []string
+	for _, attr := range []Attr(attrs) {
+		field := attr.Field()
+		switch policy := self.Nested.(type) {
+		default:
+			comps = append(comps, fmt.Sprintf("%d: %#v", field, attr.Value))
+		case MapPolicy:
+			comps = append(comps, fmt.Sprintf("%d: %s", field, policy.Dump(attr.Value.(AttrList))))
+		case ListPolicy:
+			comps = append(comps, fmt.Sprintf("%d: %s", field, policy.Dump(attr.Value.(AttrList))))
+		}
+	}
+	return fmt.Sprintf("[%s]", strings.Join(comps, ", "))
+}
+
 var binList Policy = ListPolicy{Nested: NLA_BINARY}
 
-type MapPolicy map[uint16]Policy
+type MapPolicy struct {
+	Prefix string
+	Names  map[uint16]string
+	Rule   map[uint16]Policy
+}
 
 func (self MapPolicy) Parse(buf []byte) (AttrList, error) {
 	var ret []Attr
@@ -211,7 +236,7 @@ func (self MapPolicy) Parse(buf []byte) (AttrList, error) {
 			return nil, NLE_RANGE
 		}
 		attr := Attr{Header: *hdr}
-		if p, ok := self[hdr.Type&NLA_TYPE_MASK]; ok {
+		if p, ok := self.Rule[hdr.Type&NLA_TYPE_MASK]; ok {
 			switch policy := p.(type) {
 			case SimplePolicy:
 				if fattr, err := policy.ParseOne(buf); err != nil {
@@ -237,6 +262,28 @@ func (self MapPolicy) Parse(buf []byte) (AttrList, error) {
 		buf = buf[NLA_ALIGN(int(hdr.Len)):]
 	}
 	return ret, nil
+}
+
+func (self MapPolicy) Dump(attrs AttrList) string {
+	var comps []string
+	for _, attr := range []Attr(attrs) {
+		field := attr.Field()
+		name := "?"
+		if n, ok := self.Names[field]; ok {
+			name = n
+		}
+		if p, ok := self.Rule[field]; ok {
+			switch policy := p.(type) {
+			default:
+				comps = append(comps, fmt.Sprintf("%s: %#v", name, attr.Value))
+			case MapPolicy:
+				comps = append(comps, fmt.Sprintf("%s: %s", name, policy.Dump(attr.Value.(AttrList))))
+			case ListPolicy:
+				comps = append(comps, fmt.Sprintf("%s: %s", name, policy.Dump(attr.Value.(AttrList))))
+			}
+		}
+	}
+	return fmt.Sprintf("%s(%s)", self.Prefix, strings.Join(comps, ", "))
 }
 
 // error.h

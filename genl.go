@@ -80,105 +80,33 @@ const (
 )
 
 var CtrlPolicy MapPolicy = MapPolicy{
-	CTRL_ATTR_FAMILY_ID:   NLA_U16,
-	CTRL_ATTR_FAMILY_NAME: NLA_STRING,
-	CTRL_ATTR_VERSION:     NLA_U32,
-	CTRL_ATTR_HDRSIZE:     NLA_U32,
-	CTRL_ATTR_MAXATTR:     NLA_U32,
-	CTRL_ATTR_OPS: ListPolicy{
-		Nested: MapPolicy{
-			CTRL_ATTR_OP_ID:    NLA_U32,
-			CTRL_ATTR_OP_FLAGS: NLA_U32,
+	Prefix: "CTRL_ATTR",
+	Names:  CTRL_ATTR_itoa,
+	Rule: map[uint16]Policy{
+		CTRL_ATTR_FAMILY_ID:   NLA_U16,
+		CTRL_ATTR_FAMILY_NAME: NLA_STRING,
+		CTRL_ATTR_VERSION:     NLA_U32,
+		CTRL_ATTR_HDRSIZE:     NLA_U32,
+		CTRL_ATTR_MAXATTR:     NLA_U32,
+		CTRL_ATTR_OPS: ListPolicy{
+			Nested: MapPolicy{
+				Prefix: "OP",
+				Names:  CTRL_ATTR_OP_itoa,
+				Rule: map[uint16]Policy{
+					CTRL_ATTR_OP_ID:    NLA_U32,
+					CTRL_ATTR_OP_FLAGS: NLA_U32,
+				},
+			},
+		},
+		CTRL_ATTR_MCAST_GROUPS: ListPolicy{
+			Nested: MapPolicy{
+				Prefix: "MCAST_GRP",
+				Names:  CTRL_ATTR_MCAST_GRP_itoa,
+				Rule: map[uint16]Policy{
+					CTRL_ATTR_MCAST_GRP_NAME: NLA_STRING,
+					CTRL_ATTR_MCAST_GRP_ID:   NLA_U32,
+				},
+			},
 		},
 	},
-	CTRL_ATTR_MCAST_GROUPS: ListPolicy{
-		Nested: MapPolicy{
-			CTRL_ATTR_MCAST_GRP_NAME: NLA_STRING,
-			CTRL_ATTR_MCAST_GRP_ID:   NLA_U32,
-		},
-	},
 }
-
-/*
-type CtrlAttr struct {
-	FamilyId uint16
-	FamilyName string
-	Version uint32
-	Hdrsize uint32
-	Maxattr uint32
-	Ops []CtrlOp
-	McastGroups []CtrlMcastGrp
-}
-
-type CtrlOp struct {
-	Id uint32
-	Flags uint32
-}
-
-type CtrlMcastGrp struct {
-	Id uint32
-	Name string
-}
-
-func (self *CtrlAttr) UnmarshalBinary(buf []byte) error {
-	for len(buf) > syscall.SizeofNlAttr {
-		hdr := (*syscall.NlAttr)(unsafe.Pointer(&buf[0]))
-		switch hdr.Type & NLA_TYPE_MASK {
-		case CTRL_ATTR_FAMILY_ID:
-			self.FamilyId = *(*uint16)(unsafe.Pointer(&buf[NLA_HDRLEN]))
-		case CTRL_ATTR_FAMILY_NAME:
-			self.FamilyName = string(bytes.Split(buf[NLA_HDRLEN:hdr.Len], []byte{0})[0])
-		case CTRL_ATTR_VERSION:
-			self.Version = *(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN]))
-		case CTRL_ATTR_HDRSIZE:
-			self.Hdrsize = *(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN]))
-		case CTRL_ATTR_MAXATTR:
-			self.Maxattr = *(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN]))
-		case CTRL_ATTR_OPS:
-			listBuf := buf[NLA_HDRLEN:hdr.Len]
-			for len(listBuf) > NLA_HDRLEN {
-				element := CtrlOp{}
-				listHead := (*syscall.NlAttr)(unsafe.Pointer(&listBuf[0]))
-				elementBuf := listBuf[NLA_HDRLEN:listHead.Len]
-				for len(elementBuf) > NLA_HDRLEN {
-					elementHead := (*syscall.NlAttr)(unsafe.Pointer(&elementBuf[0]))
-					switch elementHead.Type & NLA_TYPE_MASK {
-					case CTRL_ATTR_OP_ID:
-						element.Id = *(*uint32)(unsafe.Pointer(&elementBuf[NLA_HDRLEN]))
-					case CTRL_ATTR_OP_FLAGS:
-						element.Flags = *(*uint32)(unsafe.Pointer(&elementBuf[NLA_HDRLEN]))
-					default:
-						return fmt.Errorf("unknown CTRL_ATTR_OP_(%d)", elementHead.Type)
-					}
-					elementBuf = elementBuf[NLA_ALIGN(int(elementHead.Len)):]
-				}
-				self.Ops = append(self.Ops, element)
-				listBuf = listBuf[NLA_ALIGN(int(listHead.Len)):]
-			}
-		case CTRL_ATTR_MCAST_GROUPS:
-			listBuf := buf[NLA_HDRLEN:hdr.Len]
-			for len(listBuf) > NLA_HDRLEN {
-				element := CtrlMcastGrp{}
-				listHead := (*syscall.NlAttr)(unsafe.Pointer(&listBuf[0]))
-				elementBuf := listBuf[NLA_HDRLEN:listHead.Len]
-				for len(elementBuf) > NLA_HDRLEN {
-					elementHead := (*syscall.NlAttr)(unsafe.Pointer(&elementBuf[0]))
-					switch elementHead.Type & NLA_TYPE_MASK {
-					case CTRL_ATTR_MCAST_GRP_ID:
-						element.Id = *(*uint32)(unsafe.Pointer(&elementBuf[NLA_HDRLEN]))
-					case CTRL_ATTR_MCAST_GRP_NAME:
-						element.Name = string(bytes.Split(elementBuf[NLA_HDRLEN:elementHead.Len], []byte{0})[0])
-					default:
-						return fmt.Errorf("unknown CTRL_ATTR_MCAST_GRP_(%d)", elementHead.Type)
-					}
-					elementBuf = elementBuf[NLA_ALIGN(int(elementHead.Len)):]
-				}
-				self.McastGroups = append(self.McastGroups, element)
-				listBuf = listBuf[NLA_ALIGN(int(listHead.Len)):]
-			}
-		}
-		buf = buf[NLA_ALIGN(int(hdr.Len)):]
-	}
-	return nil
-}
-*/
