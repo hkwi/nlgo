@@ -99,7 +99,7 @@ var IFLA_PORT_itoa = itoa{
 	IFLA_PORT_RESPONSE:      "RESPONSE",
 }
 
-var NL80211_itoa = itoa{
+var NL80211_CMD_itoa = map[uint8]string{
 	NL80211_CMD_UNSPEC:                   "UNSPEC",
 	NL80211_CMD_GET_WIPHY:                "GET_WIPHY",
 	NL80211_CMD_SET_WIPHY:                "SET_WIPHY",
