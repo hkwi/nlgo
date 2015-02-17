@@ -6,7 +6,7 @@ const (
 	IFLA_BROADCAST
 	IFLA_IFNAME
 	IFLA_MTU
-	IFLA_LINK
+	IFLA_LINK // used with 8021q, for example
 	IFLA_QDISC
 	IFLA_STATS
 	IFLA_COST
