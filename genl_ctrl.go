@@ -82,3 +82,25 @@ func GenlCtrlProbeByName(sk *NlSock, name string) (AttrList, error) {
 	}()
 	return ret, err
 }
+
+type GenlFamily struct {
+	Id      uint16
+	Name    string
+	Version uint32
+	Hdrsize uint32
+}
+
+func (self *GenlFamily) FromAttrs(attrs AttrList) {
+	if t := attrs.Get(CTRL_ATTR_FAMILY_ID); t != nil {
+		self.Id = t.(uint16)
+	}
+	if t := attrs.Get(CTRL_ATTR_FAMILY_NAME); t != nil {
+		self.Name = t.(string)
+	}
+	if t := attrs.Get(CTRL_ATTR_VERSION); t != nil {
+		self.Version = t.(uint32)
+	}
+	if t := attrs.Get(CTRL_ATTR_HDRSIZE); t != nil {
+		self.Hdrsize = t.(uint32)
+	}
+}

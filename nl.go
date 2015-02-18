@@ -38,6 +38,66 @@ func (self Attr) Field() uint16 {
 	return self.Header.Type & NLA_TYPE_MASK
 }
 
+func (self Attr) Bytes() []byte {
+	var length int
+	var buf []byte
+	switch SimplePolicy(self.Field()) {
+	case NLA_U8:
+		length = syscall.SizeofNlAttr + 1
+		buf = make([]byte, NLA_ALIGN(length))
+		buf[NLA_HDRLEN] = self.Value.(uint8)
+	case NLA_S8:
+		length = syscall.SizeofNlAttr + 1
+		buf = make([]byte, NLA_ALIGN(length))
+		buf[NLA_HDRLEN] = uint8(self.Value.(int8))
+	case NLA_U16:
+		length = syscall.SizeofNlAttr + 2
+		buf = make([]byte, NLA_ALIGN(length))
+		*(*uint16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint16)
+	case NLA_S16:
+		length = syscall.SizeofNlAttr + 2
+		buf = make([]byte, NLA_ALIGN(length))
+		*(*int16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int16)
+	case NLA_U32:
+		length = syscall.SizeofNlAttr + 4
+		buf = make([]byte, NLA_ALIGN(length))
+		*(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint32)
+	case NLA_S32:
+		length = syscall.SizeofNlAttr + 4
+		buf = make([]byte, NLA_ALIGN(length))
+		*(*int32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int32)
+	case NLA_U64, NLA_MSECS:
+		length = syscall.SizeofNlAttr + 8
+		buf = make([]byte, NLA_ALIGN(length))
+		*(*uint64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint64)
+	case NLA_S64:
+		length = syscall.SizeofNlAttr + 8
+		buf = make([]byte, NLA_ALIGN(length))
+		*(*int64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int64)
+	case NLA_STRING, NLA_NUL_STRING:
+		vbytes := []byte(self.Value.(string))
+		length = syscall.SizeofNlAttr + len(vbytes)
+		buf = make([]byte, NLA_ALIGN(length))
+		copy(buf[NLA_HDRLEN:], vbytes)
+	case NLA_BINARY:
+		vbytes := self.Value.([]byte)
+		length = syscall.SizeofNlAttr + len(vbytes)
+		buf = make([]byte, NLA_ALIGN(length))
+		copy(buf[NLA_HDRLEN:], vbytes)
+	case NLA_FLAG:
+		length = syscall.SizeofNlAttr
+		buf = make([]byte, NLA_ALIGN(length))
+	case NLA_NESTED, NLA_NESTED_COMPAT:
+		vbytes := self.Value.(AttrList).Bytes()
+		length = syscall.SizeofNlAttr + len(vbytes)
+		buf = make([]byte, NLA_ALIGN(length))
+		copy(buf[NLA_HDRLEN:], vbytes)
+	}
+	self.Header.Len = uint16(length)
+	*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = self.Header
+	return buf
+}
+
 type AttrList []Attr
 
 func (self AttrList) Get(field uint16) interface{} {
@@ -47,6 +107,14 @@ func (self AttrList) Get(field uint16) interface{} {
 		}
 	}
 	return nil
+}
+
+func (self AttrList) Bytes() []byte {
+	var ret []byte
+	for _, attr := range []Attr(self) {
+		ret = append(ret, attr.Bytes()...)
+	}
+	return ret
 }
 
 type Policy interface {
