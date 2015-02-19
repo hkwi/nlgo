@@ -297,7 +297,3 @@ func (self GenlHub) Remove(family, group string, listener GenlListener) error {
 	}
 	return nil
 }
-
-func C() {
-	log.Print(genlRegistry)
-}
