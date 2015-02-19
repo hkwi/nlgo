@@ -7,6 +7,7 @@ package nlgo
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"strings"
 	"sync"
@@ -29,6 +30,9 @@ func NLA_ALIGN(size int) int {
 
 var NLA_HDRLEN int = NLA_ALIGN(syscall.SizeofNlAttr)
 
+// Attr represents single netlink attribute package.
+// Developer memo: syscall.ParseNetlinkRouteAttr does not parse nested attributes.
+// I wanted to make deep parser, and this is because Value is defined as interface{}.
 type Attr struct {
 	Header syscall.NlAttr
 	Value  interface{}
@@ -41,6 +45,7 @@ func (self Attr) Field() uint16 {
 func (self Attr) Bytes() []byte {
 	var length int
 	var buf []byte
+	self.Header.Type &= ^uint16(syscall.NLA_F_NESTED)
 	switch SimplePolicy(self.Field()) {
 	case NLA_U8:
 		length = syscall.SizeofNlAttr + 1
@@ -53,29 +58,56 @@ func (self Attr) Bytes() []byte {
 	case NLA_U16:
 		length = syscall.SizeofNlAttr + 2
 		buf = make([]byte, NLA_ALIGN(length))
-		*(*uint16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint16)
+		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*uint16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint16)
+		} else {
+			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], self.Value.(uint16))
+		}
 	case NLA_S16:
 		length = syscall.SizeofNlAttr + 2
 		buf = make([]byte, NLA_ALIGN(length))
-		*(*int16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int16)
+		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*int16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int16)
+		} else {
+			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], uint16(self.Value.(int16)))
+		}
 	case NLA_U32:
 		length = syscall.SizeofNlAttr + 4
 		buf = make([]byte, NLA_ALIGN(length))
-		*(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint32)
+		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint32)
+		} else {
+			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], self.Value.(uint32))
+		}
 	case NLA_S32:
 		length = syscall.SizeofNlAttr + 4
 		buf = make([]byte, NLA_ALIGN(length))
-		*(*int32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int32)
+		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*int32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int32)
+		} else {
+			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], uint32(self.Value.(int32)))
+		}
 	case NLA_U64, NLA_MSECS:
 		length = syscall.SizeofNlAttr + 8
 		buf = make([]byte, NLA_ALIGN(length))
-		*(*uint64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint64)
+		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*uint64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint64)
+		} else {
+			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], self.Value.(uint64))
+		}
 	case NLA_S64:
 		length = syscall.SizeofNlAttr + 8
 		buf = make([]byte, NLA_ALIGN(length))
-		*(*int64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int64)
+		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*int64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int64)
+		} else {
+			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], uint64(self.Value.(int64)))
+		}
 	case NLA_STRING, NLA_NUL_STRING:
 		vbytes := []byte(self.Value.(string))
+		if vbytes[len(vbytes)-1] != 0 {
+			vbytes = append(vbytes, 0) // NULL-termination
+		}
 		length = syscall.SizeofNlAttr + len(vbytes)
 		buf = make([]byte, NLA_ALIGN(length))
 		copy(buf[NLA_HDRLEN:], vbytes)
@@ -88,6 +120,7 @@ func (self Attr) Bytes() []byte {
 		length = syscall.SizeofNlAttr
 		buf = make([]byte, NLA_ALIGN(length))
 	case NLA_NESTED, NLA_NESTED_COMPAT:
+		self.Header.Type |= syscall.NLA_F_NESTED
 		vbytes := self.Value.(AttrList).Bytes()
 		length = syscall.SizeofNlAttr + len(vbytes)
 		buf = make([]byte, NLA_ALIGN(length))
@@ -123,6 +156,7 @@ type Policy interface {
 
 const NLA_TYPE_MASK = ^uint16(syscall.NLA_F_NESTED | syscall.NLA_F_NET_BYTEORDER)
 
+// SimplePolicy represents non-nested, native byteorder netlink attribute policy.
 type SimplePolicy uint16
 
 const (
@@ -230,8 +264,12 @@ func (self SimplePolicy) ParseOne(nla []byte) (attr Attr, err error) {
 	return
 }
 
+func NlaStringRemoveNul(a string) string {
+	return strings.Split(a, "\x00")[0]
+}
+
 func NlaStringEquals(a, b string) bool {
-	return strings.Split(a, "\x00")[0] == strings.Split(b, "\x00")[0]
+	return NlaStringRemoveNul(a) == NlaStringRemoveNul(b)
 }
 
 type ListPolicy struct {
@@ -472,13 +510,8 @@ func (self NlError) Error() string {
 
 // socket.c
 
-var pidLock *sync.Mutex
-var pidUsed map[int]bool
-
-func init() {
-	pidLock = &sync.Mutex{}
-	pidUsed = make(map[int]bool)
-}
+var pidLock = &sync.Mutex{}
+var pidUsed = make(map[int]bool)
 
 const (
 	NL_SOCK_BUFSIZE_SET = 1 << iota

@@ -95,7 +95,7 @@ func (self *GenlFamily) FromAttrs(attrs AttrList) {
 		self.Id = t.(uint16)
 	}
 	if t := attrs.Get(CTRL_ATTR_FAMILY_NAME); t != nil {
-		self.Name = t.(string)
+		self.Name = NlaStringRemoveNul(t.(string))
 	}
 	if t := attrs.Get(CTRL_ATTR_VERSION); t != nil {
 		self.Version = t.(uint32)
@@ -103,4 +103,10 @@ func (self *GenlFamily) FromAttrs(attrs AttrList) {
 	if t := attrs.Get(CTRL_ATTR_HDRSIZE); t != nil {
 		self.Hdrsize = t.(uint32)
 	}
+}
+
+type GenlGroup struct {
+	Id     uint32
+	Family string
+	Name   string
 }
