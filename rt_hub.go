@@ -65,8 +65,11 @@ func NewRtHub() (*RtHub, error) {
 				seq := message.Header.Seq
 				mtype := message.Header.Type
 				if seq == 0 {
+					var listeners []RtListener // rtnetlink multicast does not set pid properly by historical reason.
 					self.lock.Lock()
-					listeners := self.multicast[message.Header.Pid]
+					for _, s := range self.multicast {
+						listeners = append(listeners, s...)
+					}
 					self.lock.Unlock()
 
 					for _, listener := range listeners {
