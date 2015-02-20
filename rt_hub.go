@@ -17,20 +17,21 @@ type RtListener interface {
 }
 
 type RtHub struct {
-	Sock      *NlSock
-	Lock      *sync.Mutex
-	Unicast   map[uint32]chan RtMessage
-	Multicast map[uint32][]RtListener
+	sock      *NlSock
+	lock      *sync.Mutex
+	unicast   map[uint32]chan RtMessage
+	multicast map[uint32][]RtListener
 }
 
-func NewRtHub() (RtHub, error) {
-	self := RtHub{
-		Sock:    NlSocketAlloc(),
-		Lock:    &sync.Mutex{},
-		Unicast: make(map[uint32]chan RtMessage),
+func NewRtHub() (*RtHub, error) {
+	self := &RtHub{
+		sock:    NlSocketAlloc(),
+		lock:    &sync.Mutex{},
+		unicast: make(map[uint32]chan RtMessage),
 	}
-	if err := NlConnect(self.Sock, syscall.NETLINK_ROUTE); err != nil {
-		return self, err
+	if err := NlConnect(self.sock, syscall.NETLINK_ROUTE); err != nil {
+		NlSocketFree(self.sock)
+		return nil, err
 	}
 	go func() {
 		for {
@@ -40,7 +41,7 @@ func NewRtHub() (RtHub, error) {
 
 			buf := make([]byte, syscall.Getpagesize())
 			oob := make([]byte, syscall.Getpagesize())
-			if bufN, oobN, _, _, err := syscall.Recvmsg(self.Sock.Fd, buf, oob, syscall.MSG_TRUNC); err != nil {
+			if bufN, oobN, _, _, err := syscall.Recvmsg(self.sock.Fd, buf, oob, syscall.MSG_TRUNC); err != nil {
 				merr = err
 			} else if bufN > len(buf) {
 				merr = err
@@ -63,22 +64,22 @@ func NewRtHub() (RtHub, error) {
 				seq := message.Header.Seq
 				mtype := message.Header.Type
 				if seq == 0 {
-					self.Lock.Lock()
-					listeners := self.Multicast[message.Header.Pid]
-					self.Lock.Unlock()
+					self.lock.Lock()
+					listeners := self.multicast[message.Header.Pid]
+					self.lock.Unlock()
 
 					for _, listener := range listeners {
 						listener.RtListen(msg)
 					}
 				} else {
-					self.Lock.Lock()
-					listener := self.Unicast[seq]
-					self.Lock.Unlock()
+					self.lock.Lock()
+					listener := self.unicast[seq]
+					self.lock.Unlock()
 
 					if listener != nil {
 						listener <- msg
 						if mtype == syscall.NLMSG_DONE || mtype == syscall.NLMSG_ERROR {
-							delete(self.Unicast, seq)
+							delete(self.unicast, seq)
 							close(listener)
 						}
 					}
@@ -89,7 +90,7 @@ func NewRtHub() (RtHub, error) {
 	return self, nil
 }
 
-func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrList) (chan RtMessage, error) {
+func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrList) ([]RtMessage, error) {
 	res := make(chan RtMessage)
 
 	var msg []byte
@@ -109,44 +110,53 @@ func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrLis
 		msg = make([]byte, NLMSG_ALIGN(SizeofTcmsg))
 	default:
 		close(res)
-		return res, fmt.Errorf("unsupported")
+		return nil, fmt.Errorf("unsupported")
 	}
 	copy(msg, payload)
 	msg = append(msg, attr.Bytes()...)
 
-	self.Lock.Lock()
-	defer self.Lock.Unlock()
-	self.Unicast[self.Sock.SeqNext] = res
-	return res, NlSendSimple(self.Sock, cmd, flags, msg)
+	self.lock.Lock()
+	self.unicast[self.sock.SeqNext] = res
+	self.lock.Unlock()
+
+	if err := NlSendSimple(self.sock, cmd, flags, msg); err != nil {
+		return nil, err
+	}
+
+	var ret []RtMessage
+	for r := range res {
+		ret = append(ret, r)
+	}
+	return ret, nil
 }
 
 func (self RtHub) Add(group uint32, listener RtListener) error {
-	self.Lock.Lock()
-	defer self.Lock.Unlock()
+	self.lock.Lock()
+	defer self.lock.Unlock()
 
-	if len(self.Multicast[group]) == 0 {
-		if err := NlSocketAddMembership(self.Sock, int(group)); err != nil {
+	if len(self.multicast[group]) == 0 {
+		if err := NlSocketAddMembership(self.sock, int(group)); err != nil {
 			return err
 		}
 	}
-	self.Multicast[group] = append(self.Multicast[group], listener)
+	self.multicast[group] = append(self.multicast[group], listener)
 	return nil
 }
 
 func (self RtHub) Remove(group uint32, listener RtListener) error {
-	self.Lock.Lock()
-	defer self.Lock.Unlock()
+	self.lock.Lock()
+	defer self.lock.Unlock()
 
 	var active []RtListener
-	for _, li := range self.Multicast[group] {
+	for _, li := range self.multicast[group] {
 		if li != listener {
 			active = append(active, li)
 		}
 	}
-	self.Multicast[group] = active
+	self.multicast[group] = active
 
 	if len(active) == 0 {
-		if err := NlSocketDropMembership(self.Sock, int(group)); err != nil {
+		if err := NlSocketDropMembership(self.sock, int(group)); err != nil {
 			return err
 		}
 	}
