@@ -25,9 +25,10 @@ type RtHub struct {
 
 func NewRtHub() (*RtHub, error) {
 	self := &RtHub{
-		sock:    NlSocketAlloc(),
-		lock:    &sync.Mutex{},
-		unicast: make(map[uint32]chan RtMessage),
+		sock:      NlSocketAlloc(),
+		lock:      &sync.Mutex{},
+		unicast:   make(map[uint32]chan RtMessage),
+		multicast: make(map[uint32][]RtListener),
 	}
 	if err := NlConnect(self.sock, syscall.NETLINK_ROUTE); err != nil {
 		NlSocketFree(self.sock)
