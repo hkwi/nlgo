@@ -65,7 +65,7 @@ func NewRtHub() (*RtHub, error) {
 				seq := message.Header.Seq
 				mtype := message.Header.Type
 				if seq == 0 {
-					var listeners []RtListener // rtnetlink multicast does not set pid properly by historical reason.
+					var listeners []RtListener
 					self.lock.Lock()
 					for _, s := range self.multicast {
 						listeners = append(listeners, s...)
@@ -134,6 +134,9 @@ func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrLis
 	return ret, nil
 }
 
+// Add adds a listener to the hub.
+// listener will recieve all of the rtnetlink events, regardless of their group registration.
+// If you want to split it, then use separate RtHub.
 func (self RtHub) Add(group uint32, listener RtListener) error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
