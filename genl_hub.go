@@ -3,7 +3,6 @@ package nlgo
 import (
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -20,284 +19,106 @@ type GenlListener interface {
 	GenlListen(GenlMessage)
 }
 
-func groupKey(family, group string) string {
-	return NlaStringRemoveNul(family) + "\x00" + NlaStringRemoveNul(group)
+type groupKey struct {
+	Family string
+	Name   string
 }
 
 type GenlHub struct {
-	sock      *NlSock
-	lock      *sync.Mutex
-	unicast   map[uint32]chan GenlMessage
-	multicast map[string][]GenlListener
+	sock       *NlSock
+	lock       *sync.Mutex
+	familyIds  map[uint16]GenlFamily
+	groupIds   map[uint32]GenlGroup
+	membership []uint32
+	unicast    map[uint32]chan GenlMessage
+	multicast  map[groupKey][]GenlListener
 }
 
-func (self GenlHub) Close() {
-	NlSocketFree(self.sock)
+func (self *GenlHub) join(group uint32) error {
+	for _, member := range self.membership {
+		if member == group {
+			return nil
+		}
+	}
+	self.membership = append(self.membership, group)
+	return NlSocketAddMembership(self.sock, int(group))
 }
 
-type genlRegistryWatcher struct {
-	lock   *sync.Mutex
-	family map[uint16]GenlFamily
-	group  map[uint32]GenlGroup
-}
-
-var genlRegistry = genlRegistryWatcher{
-	lock: &sync.Mutex{},
-	family: map[uint16]GenlFamily{
-		GENL_ID_CTRL: GenlFamily{
-			Id:      GENL_ID_CTRL,
-			Name:    "nlctrl",
-			Version: 1,
-		},
-	},
-	group: map[uint32]GenlGroup{
-		GENL_ID_CTRL: GenlGroup{
-			Id:     GENL_ID_CTRL,
-			Family: "nlctrl",
-			Name:   "notify",
-		},
-	},
-}
-
-var genlRegistryHub *GenlHub
-
-func (self genlRegistryWatcher) GenlListen(msg GenlMessage) {
-	if msg.Header.Type == GENL_ID_CTRL {
-		if attrs, err := CtrlPolicy.Parse(msg.Payload); err != nil {
-			log.Print(err)
+func (self *GenlHub) leave(group uint32) error {
+	var active []uint32
+	hit := false
+	for _, member := range self.membership {
+		if member == group {
+			hit = true
 		} else {
-			family := GenlFamily{}
-			family.FromAttrs(attrs)
-
-			groups := make(map[uint32]GenlGroup)
-			if grps := attrs.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
-				for _, grp := range []Attr(grps.(AttrList)) {
-					gattr := grp.Value.(AttrList)
-					key := gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(uint32)
-					groups[key] = GenlGroup{
-						Id:   key,
-						Name: NlaStringRemoveNul(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(string)),
-					}
-				}
-			}
-
-			func() {
-				genlRegistry.lock.Lock()
-				defer genlRegistry.lock.Unlock()
-
-				switch msg.Genl.Cmd {
-				case CTRL_CMD_NEWFAMILY:
-					genlRegistry.family[family.Id] = family
-					for pid, grp := range groups {
-						grp.Family = family.Name
-						genlRegistry.group[pid] = grp
-					}
-				case CTRL_CMD_NEWMCAST_GRP:
-					familyName := family.Name
-					if rfamily, ok := genlRegistry.family[family.Id]; ok {
-						familyName = rfamily.Name
-					}
-					for pid, grp := range groups {
-						grp.Family = familyName
-						genlRegistry.group[pid] = grp
-					}
-				case CTRL_CMD_DELFAMILY:
-					if rfamily, ok := genlRegistry.family[family.Id]; ok {
-						delete(genlRegistry.family, family.Id)
-
-						var gids []uint32
-						for gid, grp := range genlRegistry.group {
-							if grp.Name == rfamily.Name {
-								gids = append(gids, gid)
-							}
-						}
-						for _, gid := range gids {
-							delete(genlRegistry.group, gid)
-						}
-					}
-				case CTRL_CMD_DELMCAST_GRP:
-					for pid, _ := range groups {
-						delete(genlRegistry.group, pid)
-					}
-				}
-			}()
+			active = append(active, member)
 		}
 	}
-}
-
-func genlFamilyAtoi(family string) *GenlFamily {
-	if genlRegistryHub != nil {
-		genlRegistry.lock.Lock()
-		defer genlRegistry.lock.Unlock()
-
-		for _, f := range genlRegistry.family {
-			if f.Name == family {
-				return &f
-			}
-		}
-	} else if hub, err := NewGenlHub(); err == nil {
-		defer hub.Close()
-
-		if res, err := hub.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, AttrList{Attr{
-			Header: syscall.NlAttr{
-				Type: CTRL_ATTR_FAMILY_NAME,
-			},
-			Value: family,
-		}}); err != nil {
-			for _, r := range res {
-				if r.Genl != nil && r.Genl.Cmd == CTRL_CMD_NEWFAMILY {
-					if attrs, err := CtrlPolicy.Parse(r.Payload); err == nil {
-						if NlaStringEquals(attrs.Get(CTRL_ATTR_FAMILY_NAME).(string), family) {
-							genlFamily := &GenlFamily{}
-							genlFamily.FromAttrs(attrs)
-							return genlFamily
-						}
-					}
-				}
-			}
-		}
+	self.membership = active
+	if hit {
+		return NlSocketDropMembership(self.sock, int(group))
 	}
 	return nil
 }
 
-func genlFamilyItoa(family uint16) *GenlFamily {
-	if genlRegistryHub != nil {
-		genlRegistry.lock.Lock()
-		defer genlRegistry.lock.Unlock()
-
-		for _, f := range genlRegistry.family {
-			if f.Id == family {
-				return &f
+func (self *GenlHub) sync() error {
+	var active []uint32
+	for gkey, _ := range self.multicast {
+		for _, ginfo := range self.groupIds {
+			if ginfo.Family == gkey.Family && ginfo.Name == gkey.Name {
+				active = append(active, ginfo.Id)
 			}
 		}
-	} else if hub, err := NewGenlHub(); err == nil {
-		defer hub.Close()
-
-		if res, err := hub.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, AttrList{Attr{
-			Header: syscall.NlAttr{
-				Type: CTRL_ATTR_FAMILY_ID,
-			},
-			Value: family,
-		}}); err != nil {
-			for _, r := range res {
-				if r.Genl != nil && r.Genl.Cmd == CTRL_CMD_NEWFAMILY {
-					if attrs, err := CtrlPolicy.Parse(r.Payload); err == nil {
-						if attrs.Get(CTRL_ATTR_FAMILY_ID).(uint16) == family {
-							genlFamily := &GenlFamily{}
-							genlFamily.FromAttrs(attrs)
-							return genlFamily
-						}
-					}
-				}
+	}
+	for _, old := range self.membership {
+		drop := true
+		for _, new := range active {
+			if new == old {
+				drop = false
+			}
+		}
+		if drop {
+			if err := self.leave(old); err != nil {
+				return err
+			}
+		}
+	}
+	for _, new := range active {
+		join := true
+		for _, old := range self.membership {
+			if new == old {
+				join = false
+			}
+		}
+		if join {
+			if err := self.join(new); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
-}
-
-func genlGroupAtoi(family, name string) *GenlGroup {
-	if genlRegistryHub != nil {
-		genlRegistry.lock.Lock()
-		defer genlRegistry.lock.Unlock()
-
-		for _, grp := range genlRegistry.group {
-			if grp.Family == family && grp.Name == name {
-				return &grp
-			}
-		}
-	} else if hub, err := NewGenlHub(); err == nil {
-		defer hub.Close()
-
-		if res, err := hub.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, AttrList{Attr{
-			Header: syscall.NlAttr{
-				Type: CTRL_ATTR_FAMILY_NAME,
-			},
-			Value: family,
-		}}); err != nil {
-			for _, r := range res {
-				if r.Genl != nil && r.Genl.Cmd == CTRL_CMD_NEWFAMILY {
-					if attrs, err := CtrlPolicy.Parse(r.Payload); err == nil {
-						if NlaStringEquals(attrs.Get(CTRL_ATTR_FAMILY_NAME).(string), family) {
-							for _, attr := range []Attr(attrs.Get(CTRL_ATTR_MCAST_GROUPS).(AttrList)) {
-								gattr := attr.Value.(AttrList)
-								if NlaStringEquals(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(string), name) {
-									return &GenlGroup{
-										Id:     gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(uint32),
-										Family: family,
-										Name:   name,
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func genlGroupItoa(pid uint32) *GenlGroup {
-	if genlRegistryHub != nil {
-		genlRegistry.lock.Lock()
-		defer genlRegistry.lock.Unlock()
-
-		for _, grp := range genlRegistry.group {
-			if grp.Id == pid {
-				return &grp
-			}
-		}
-	} else if hub, err := NewGenlHub(); err == nil {
-		defer hub.Close()
-
-		if res, err := hub.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, nil); err != nil {
-			for _, r := range res {
-				if r.Genl != nil && r.Genl.Cmd == CTRL_CMD_NEWFAMILY {
-					if attrs, err := CtrlPolicy.Parse(r.Payload); err == nil {
-						for _, attr := range []Attr(attrs.Get(CTRL_ATTR_MCAST_GROUPS).(AttrList)) {
-							gattr := attr.Value.(AttrList)
-							if gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(uint32) == pid {
-								return &GenlGroup{
-									Id:     gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(uint32),
-									Family: NlaStringRemoveNul(attrs.Get(CTRL_ATTR_FAMILY_NAME).(string)),
-									Name:   NlaStringRemoveNul(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(string)),
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func DefaultGenlHub() (*GenlHub, error) {
-	if genlRegistryHub == nil {
-		if hub, err := NewGenlHub(); err != nil {
-			return nil, err
-		} else {
-			genlRegistryHub = hub
-		}
-	}
-	if err := genlRegistryHub.Add("nlctrl", "notify", genlRegistry); err != nil {
-		return nil, err
-	} else if res, err := genlRegistryHub.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, nil); err != nil {
-		return nil, err
-	} else {
-		for _, msg := range res {
-			genlRegistry.GenlListen(msg)
-		}
-	}
-	return genlRegistryHub, nil
 }
 
 func NewGenlHub() (*GenlHub, error) {
 	self := &GenlHub{
-		sock:      NlSocketAlloc(),
-		lock:      &sync.Mutex{},
+		sock: NlSocketAlloc(),
+		lock: &sync.Mutex{},
+		familyIds: map[uint16]GenlFamily{
+			GENL_ID_CTRL: GenlFamily{
+				Id:      GENL_ID_CTRL,
+				Name:    "nlctrl",
+				Version: 1,
+			},
+		},
+		groupIds: map[uint32]GenlGroup{
+			GENL_ID_CTRL: GenlGroup{
+				Id:     GENL_ID_CTRL,
+				Family: "nlctrl",
+				Name:   "notify",
+			},
+		},
 		unicast:   make(map[uint32]chan GenlMessage),
-		multicast: make(map[string][]GenlListener),
+		multicast: make(map[groupKey][]GenlListener),
 	}
 	if err := NlConnect(self.sock, syscall.NETLINK_GENERIC); err != nil {
 		NlSocketFree(self.sock)
@@ -307,13 +128,11 @@ func NewGenlHub() (*GenlHub, error) {
 		feed := func(msg GenlMessage) {
 			seq := msg.Header.Seq
 			if seq == 0 { // multicast
-				if family := genlFamilyItoa(msg.Header.Type); family == nil {
-					log.Print("got unknown family message")
-				} else {
-					var listeners []GenlListener
-					self.lock.Lock()
+				var listeners []GenlListener
+				self.lock.Lock()
+				if family, ok := self.familyIds[msg.Header.Type]; ok {
 					for gkey, ls := range self.multicast {
-						if strings.HasPrefix(gkey, family.Name+"\x00") {
+						if gkey.Family == family.Name {
 							for _, listener := range ls {
 								if ok := func() bool {
 									for _, li := range listeners {
@@ -328,11 +147,13 @@ func NewGenlHub() (*GenlHub, error) {
 							}
 						}
 					}
-					self.lock.Unlock()
+				} else {
+					log.Print("got unknown family message")
+				}
+				self.lock.Unlock()
 
-					for _, listener := range listeners {
-						listener.GenlListen(msg)
-					}
+				for _, listener := range listeners {
+					listener.GenlListen(msg)
 				}
 			} else {
 				self.lock.Lock()
@@ -342,7 +163,7 @@ func NewGenlHub() (*GenlHub, error) {
 				if listener != nil {
 					listener <- msg
 					mtype := msg.Header.Type
-					if mtype == syscall.NLMSG_DONE || mtype == syscall.NLMSG_ERROR { // NlSock.Flags NL_NO_AUTO_ACK is 0
+					if mtype == syscall.NLMSG_DONE || mtype == syscall.NLMSG_ERROR { // NlSock.Flags NL_NO_AUTO_ACK is 0 by default
 						self.lock.Lock()
 						delete(self.unicast, seq)
 						self.lock.Unlock()
@@ -380,11 +201,85 @@ func NewGenlHub() (*GenlHub, error) {
 			}
 		}
 	}()
+
+	self.Add("nlctrl", "notify", self)
+	if res, err := self.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, nil); err != nil {
+		return nil, err
+	} else {
+		for _, r := range res {
+			self.GenlListen(r)
+		}
+	}
 	return self, nil
 }
 
+func (self GenlHub) Close() {
+	NlSocketFree(self.sock)
+}
+
+func (self GenlHub) GenlListen(msg GenlMessage) {
+	if msg.Header.Type != GENL_ID_CTRL {
+		return
+	}
+	family := GenlFamily{}
+	groups := make(map[uint32]GenlGroup)
+	if attrs, err := CtrlPolicy.Parse(msg.Payload); err != nil {
+		log.Print(err)
+	} else {
+		family.FromAttrs(attrs)
+
+		familyName := family.Name
+		if f, ok := self.familyIds[family.Id]; ok {
+			familyName = f.Name
+		}
+		if grps := attrs.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
+			for _, grp := range []Attr(grps.(AttrList)) {
+				gattr := grp.Value.(AttrList)
+				key := gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(uint32)
+				groups[key] = GenlGroup{
+					Id:     key,
+					Family: familyName,
+					Name:   NlaStringRemoveNul(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(string)),
+				}
+			}
+		}
+	}
+
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	switch msg.Genl.Cmd {
+	case CTRL_CMD_NEWFAMILY:
+		self.familyIds[family.Id] = family
+		fallthrough
+	case CTRL_CMD_NEWMCAST_GRP:
+		for _, grp := range groups {
+			if _, exists := self.groupIds[grp.Id]; !exists {
+				self.groupIds[grp.Id] = grp
+			}
+		}
+	case CTRL_CMD_DELFAMILY:
+		delete(self.familyIds, family.Id)
+		fallthrough
+	case CTRL_CMD_DELMCAST_GRP:
+		for _, grp := range groups {
+			if _, exists := self.groupIds[grp.Id]; exists {
+				delete(self.groupIds, grp.Id)
+			}
+		}
+	}
+	self.sync()
+}
+
 func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint16, payload []byte, attr AttrList) ([]GenlMessage, error) {
-	familyInfo := genlFamilyAtoi(family)
+	var familyInfo *GenlFamily
+	self.lock.Lock()
+	for _, f := range self.familyIds {
+		if f.Name == family {
+			familyInfo = &f
+		}
+	}
+	self.lock.Unlock()
 	if familyInfo == nil {
 		return nil, fmt.Errorf("family not found")
 	}
@@ -421,26 +316,16 @@ func (self GenlHub) Add(family, group string, listener GenlListener) error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	groupInfo := genlGroupAtoi(family, group)
-	if groupInfo == nil {
-		return fmt.Errorf("group %s,%s not found", family, group)
-	}
-
-	key := groupKey(family, group)
-	if len(self.multicast[key]) == 0 {
-		if err := NlSocketAddMembership(self.sock, int(groupInfo.Id)); err != nil {
-			return err
-		}
-	}
+	key := groupKey{Family: family, Name: group}
 	self.multicast[key] = append(self.multicast[key], listener)
-	return nil
+	return self.sync()
 }
 
 func (self GenlHub) Remove(family, group string, listener GenlListener) error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	key := groupKey(family, group)
+	key := groupKey{Family: family, Name: group}
 	var active []GenlListener
 	for _, li := range self.multicast[key] {
 		if li != listener {
@@ -448,13 +333,5 @@ func (self GenlHub) Remove(family, group string, listener GenlListener) error {
 		}
 	}
 	self.multicast[key] = active
-
-	if len(active) == 0 {
-		if groupInfo := genlGroupAtoi(family, group); groupInfo == nil {
-			return fmt.Errorf("group not found")
-		} else if err := NlSocketDropMembership(self.sock, int(groupInfo.Id)); err != nil {
-			return err
-		}
-	}
-	return nil
+	return self.sync()
 }
