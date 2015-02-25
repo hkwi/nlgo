@@ -11,6 +11,7 @@ import (
 type GenlMessage struct {
 	Header  syscall.NlMsghdr
 	Genl    *GenlMsghdr
+	Family  string
 	Payload []byte // fixe header + attributes
 	Error   error
 }
@@ -135,7 +136,7 @@ func NewGenlHub() (*GenlHub, error) {
 					for gkey, ls := range self.multicast {
 						if gkey.Family == family.Name {
 							for _, listener := range ls {
-								if ok := func() bool {
+								if ok := func() bool { // remove duplicate
 									for _, li := range listeners {
 										if li == listener {
 											return false
@@ -188,6 +189,7 @@ func NewGenlHub() (*GenlHub, error) {
 					default:
 						feed(GenlMessage{
 							Header:  msg.Header,
+							Famliy:  self.familyIds[msg.Header.Type].Name,
 							Genl:    (*GenlMsghdr)(unsafe.Pointer(&msg.Data[0])),
 							Payload: msg.Data[GENL_HDRLEN:],
 						})
