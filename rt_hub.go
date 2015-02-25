@@ -16,6 +16,7 @@ type RtListener interface {
 	RtListen(RtMessage)
 }
 
+// RtHub is a high layer thread-safe API, which is not present in libnl.
 type RtHub struct {
 	sock      *NlSock
 	lock      *sync.Mutex

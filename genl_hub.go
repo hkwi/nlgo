@@ -24,6 +24,7 @@ type groupKey struct {
 	Name   string
 }
 
+// GenlHub is generic netlink version of RtHub.
 type GenlHub struct {
 	sock       *NlSock
 	lock       *sync.Mutex
