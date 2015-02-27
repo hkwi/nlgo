@@ -189,7 +189,7 @@ func NewGenlHub() (*GenlHub, error) {
 					default:
 						feed(GenlMessage{
 							Header:  msg.Header,
-							Famliy:  self.familyIds[msg.Header.Type].Name,
+							Family:  self.familyIds[msg.Header.Type].Name,
 							Genl:    (*GenlMsghdr)(unsafe.Pointer(&msg.Data[0])),
 							Payload: msg.Data[GENL_HDRLEN:],
 						})
