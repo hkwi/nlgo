@@ -95,6 +95,10 @@ func NewRtHub() (*RtHub, error) {
 	return self, nil
 }
 
+func (self RtHub) Close() {
+	NlSocketFree(self.sock)
+}
+
 func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrList) ([]RtMessage, error) {
 	res := make(chan RtMessage)
 
