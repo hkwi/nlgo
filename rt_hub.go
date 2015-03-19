@@ -45,6 +45,8 @@ func NewRtHub() (*RtHub, error) {
 			oob := make([]byte, syscall.Getpagesize())
 			if bufN, oobN, _, _, err := syscall.Recvmsg(self.sock.Fd, buf, oob, syscall.MSG_TRUNC); err != nil {
 				merr = err
+			} else if bufN == 0 {
+				break
 			} else if bufN > len(buf) {
 				merr = err
 			} else if oobN > len(oob) {

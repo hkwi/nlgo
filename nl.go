@@ -45,7 +45,15 @@ func (self Attr) Field() uint16 {
 func (self Attr) Bytes() []byte {
 	var length int
 	var buf []byte
-	self.Header.Type &= ^uint16(syscall.NLA_F_NESTED)
+
+	if payload,ok := self.Value.(Attr); ok {
+		p := payload.Bytes()
+		buf = make([]byte, NLA_ALIGN(NLA_HDRLEN + len(p)))
+		copy(buf[NLA_HDRLEN:], p)
+		self.Header.Len = uint16(len(p))
+		*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = self.Header
+		return buf
+	}
 	switch SimplePolicy(self.Field()) {
 	case NLA_U8:
 		length = syscall.SizeofNlAttr + 1
@@ -105,7 +113,7 @@ func (self Attr) Bytes() []byte {
 		}
 	case NLA_STRING, NLA_NUL_STRING:
 		vbytes := []byte(self.Value.(string))
-		if vbytes[len(vbytes)-1] != 0 {
+		if len(vbytes) > 0 && vbytes[len(vbytes)-1] != 0 {
 			vbytes = append(vbytes, 0) // NULL-termination
 		}
 		length = syscall.SizeofNlAttr + len(vbytes)
