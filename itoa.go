@@ -1,3 +1,5 @@
+// +build linux
+
 package nlgo
 
 type itoa map[uint16]string
