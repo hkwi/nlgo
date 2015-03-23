@@ -179,10 +179,13 @@ func NewGenlHub() (*GenlHub, error) {
 			buf := make([]byte, syscall.Getpagesize())
 			if bufN, _, err := syscall.Recvfrom(self.sock.Fd, buf, syscall.MSG_TRUNC); err != nil {
 				feed(GenlMessage{Error: err})
+				return
 			} else if bufN > len(buf) {
 				feed(GenlMessage{Error: fmt.Errorf("msg trunc")})
+				return
 			} else if msgs, err := syscall.ParseNetlinkMessage(buf[:bufN]); err != nil {
 				feed(GenlMessage{Error: err})
+				return
 			} else {
 				for _, msg := range msgs {
 					switch msg.Header.Type {
@@ -284,7 +287,7 @@ func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint1
 	}
 	self.lock.Unlock()
 	if familyInfo == nil {
-		return nil, fmt.Errorf("family not found")
+		return nil, fmt.Errorf("family %s not found", family)
 	}
 
 	res := make(chan GenlMessage)
