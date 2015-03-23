@@ -1,3 +1,5 @@
+// +build linux
+
 package nlgo
 
 // v3.18.5
