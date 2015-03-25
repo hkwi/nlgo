@@ -609,9 +609,7 @@ func NlConnect(sk *NlSock, protocol int) error {
 		for high := 1023; high > 0; high-- {
 			if next := func() bool {
 				pidLock.Lock()
-				defer func() {
-					pidLock.Unlock()
-				}()
+				defer pidLock.Unlock()
 				if _, exists := pidUsed[high]; !exists {
 					pidUsed[high] = true
 					return false
@@ -684,4 +682,14 @@ func NlCompleteMsg(sk *NlSock, msg []byte) {
 	if sk.Flags&NL_NO_AUTO_ACK == 0 {
 		hdr.Flags |= syscall.NLM_F_ACK
 	}
+}
+
+type MsgError struct {
+	In syscall.NlMsgerr
+}
+
+func (self MsgError) Error() string {
+	return fmt.Sprintf("NlMsgerr{ Error=%d, Msg=%v }",
+		self.In.Error,
+		self.In.Msg)
 }

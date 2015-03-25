@@ -180,6 +180,9 @@ func NewGenlHub() (*GenlHub, error) {
 		for {
 			buf := make([]byte, syscall.Getpagesize())
 			if bufN, _, err := syscall.Recvfrom(self.sock.Fd, buf, syscall.MSG_TRUNC); err != nil {
+				if e, ok := err.(syscall.Errno); ok && e.Temporary() {
+					continue
+				}
 				feed(GenlMessage{Error: err})
 				return
 			} else if bufN > len(buf) {
@@ -198,7 +201,13 @@ func NewGenlHub() (*GenlHub, error) {
 							Genl:    (*GenlMsghdr)(unsafe.Pointer(&msg.Data[0])),
 							Payload: msg.Data[GENL_HDRLEN:],
 						})
-					case syscall.NLMSG_ERROR, syscall.NLMSG_DONE:
+					case syscall.NLMSG_ERROR:
+						err := *(*syscall.NlMsgerr)(unsafe.Pointer(&msg.Data[0]))
+						feed(GenlMessage{
+							Header: msg.Header,
+							Error:  MsgError{In: err},
+						})
+					case syscall.NLMSG_DONE:
 						feed(GenlMessage{
 							Header:  msg.Header,
 							Genl:    nil,
