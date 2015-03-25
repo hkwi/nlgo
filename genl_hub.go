@@ -252,7 +252,7 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 				return f.Name
 			}
 			return family.Name
-		}
+		}()
 		if grps := attrs.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
 			for _, grp := range []Attr(grps.(AttrList)) {
 				gattr := grp.Value.(AttrList)
