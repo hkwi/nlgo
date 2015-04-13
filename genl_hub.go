@@ -245,10 +245,14 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 	} else {
 		family.FromAttrs(attrs)
 
-		familyName := family.Name
-		if f, ok := self.familyIds[family.Id]; ok {
-			familyName = f.Name
-		}
+		familyName := func() string {
+			self.lock.Lock()
+			defer self.lock.Unlock()
+			if f, ok := self.familyIds[family.Id]; ok {
+				return f.Name
+			}
+			return family.Name
+		}()
 		if grps := attrs.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
 			for _, grp := range []Attr(grps.(AttrList)) {
 				gattr := grp.Value.(AttrList)
@@ -289,15 +293,17 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 }
 
 func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint16, payload []byte, attr AttrList) ([]GenlMessage, error) {
-	var familyInfo *GenlFamily
+	var familyInfo GenlFamily
+	familyInfoMiss := true
 	self.lock.Lock()
 	for _, f := range self.familyIds {
 		if f.Name == family {
-			familyInfo = &f
+			familyInfo = f
+			familyInfoMiss = false
 		}
 	}
 	self.lock.Unlock()
-	if familyInfo == nil {
+	if familyInfoMiss {
 		return nil, fmt.Errorf("family %s not found", family)
 	}
 
@@ -311,11 +317,15 @@ func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint1
 	copy(msg[GENL_HDRLEN:], payload)
 	msg = append(msg, attr.Bytes()...)
 
-	self.lock.Lock()
-	self.unicast[self.sock.SeqNext] = res
-	self.lock.Unlock()
-
-	if err := NlSendSimple(self.sock, familyInfo.Id, flags, msg); err != nil {
+	if err := func() error {
+		self.lock.Lock()
+		defer self.lock.Unlock()
+		self.unicast[self.sock.SeqNext] = res
+		if err := NlSendSimple(self.sock, familyInfo.Id, flags, msg); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
 		return nil, err
 	}
 
