@@ -76,6 +76,7 @@ const (
 	IFLA_PORT_RESPONSE
 )
 
+// RtnlLinkStats64 will be the contents for IFLA_STATS64.
 type RtnlLinkStats64 struct {
 	RxPackets  uint64
 	TxPackets  uint64

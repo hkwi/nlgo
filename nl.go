@@ -588,6 +588,7 @@ func NlSocketSetBufferSize(sk *NlSock, rxbuf, txbuf int) error {
 	return nil
 }
 
+// NlConnect is same with libnl nl_connect. nl_close is required for releaseing internal fd.
 func NlConnect(sk *NlSock, protocol int) error {
 	if sk.Fd != -1 {
 		return NLE_BAD_SOCK
@@ -643,10 +644,12 @@ func NlConnect(sk *NlSock, protocol int) error {
 	return nil
 }
 
+// NlSocketAddMembership is same with libnl nl_socket_add_membership.
 func NlSocketAddMembership(sk *NlSock, group int) error {
 	return syscall.SetsockoptInt(sk.Fd, SOL_NETLINK, syscall.NETLINK_ADD_MEMBERSHIP, group)
 }
 
+// NlSocketAddMembership is same with libnl nl_socket_drop_membership.
 func NlSocketDropMembership(sk *NlSock, group int) error {
 	return syscall.SetsockoptInt(sk.Fd, SOL_NETLINK, syscall.NETLINK_DROP_MEMBERSHIP, group)
 }
@@ -656,6 +659,7 @@ func NlSocketDropMembership(sk *NlSock, group int) error {
 const NL_AUTO_PORT = 0
 const NL_AUTO_SEQ = 0
 
+// NlSendSimple is same with libnl nl_send_simple.
 func NlSendSimple(sk *NlSock, family uint16, flags uint16, buf []byte) error {
 	msg := make([]byte, syscall.NLMSG_HDRLEN+NLMSG_ALIGN(len(buf)))
 	hdr := (*syscall.NlMsghdr)(unsafe.Pointer(&msg[0]))
@@ -669,6 +673,7 @@ func NlSendSimple(sk *NlSock, family uint16, flags uint16, buf []byte) error {
 
 // nl.c
 
+// NlCompleteMsg is same with libnl nl_complete_msg.
 func NlCompleteMsg(sk *NlSock, msg []byte) {
 	hdr := (*syscall.NlMsghdr)(unsafe.Pointer(&msg[0]))
 	if hdr.Pid == NL_AUTO_PORT {
@@ -684,6 +689,7 @@ func NlCompleteMsg(sk *NlSock, msg []byte) {
 	}
 }
 
+// MsgError is a wrapper for NlMsgerr implementing error.
 type MsgError struct {
 	In syscall.NlMsgerr
 }

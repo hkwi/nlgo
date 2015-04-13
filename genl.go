@@ -24,10 +24,12 @@ const (
 	GENL_CMD_CAP_HASPOL
 )
 
+// GenlConnect is same with libnl genl_connect.
 func GenlConnect(sk *NlSock) error {
 	return NlConnect(sk, syscall.NETLINK_GENERIC)
 }
 
+// GenlSendSimple is same with libnl genl_send_simple.
 func GenlSendSimple(sk *NlSock, family uint16, cmd, version uint8, flags uint16) error {
 	hdr := (*[SizeofGenlMsghdr]byte)(unsafe.Pointer(&GenlMsghdr{
 		Cmd:     cmd,
