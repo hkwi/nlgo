@@ -8,6 +8,14 @@ import (
 	"unsafe"
 )
 
+/*
+Genl socket message is classified by GenlFamily.
+One genl socket can handle multiple GenlFamily messages.
+There's a predefined GenlFamily, "nlctrl" which has one "notify" group.
+The other GenlFamily can be registered dynamically in the kernel.
+By sending nlctrl family message, we can query those GenlFamily information.
+*/
+
 func GenlCtrlResolve(sk *NlSock, name string) (uint16, error) {
 	if attrs, err := GenlCtrlProbeByName(sk, name); err != nil {
 		return 0, err
