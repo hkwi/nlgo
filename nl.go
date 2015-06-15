@@ -52,7 +52,7 @@ func (self Attr) Bytes() []byte {
 		p := payload.Bytes()
 		buf = make([]byte, NLA_ALIGN(NLA_HDRLEN+len(p)))
 		copy(buf[NLA_HDRLEN:], p)
-		self.Header.Len = uint16(len(p))
+		self.Header.Len = uint16(NLA_HDRLEN + len(p))
 		*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = self.Header
 		return buf
 	}
