@@ -106,7 +106,7 @@ func (self RtHub) Close() {
 	NlSocketFree(self.sock)
 }
 
-func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrList) ([]RtMessage, error) {
+func (self RtHub) Request(cmd uint16, flags uint16, payload []byte) ([]RtMessage, error) {
 	res := make(chan RtMessage)
 
 	var msg []byte
@@ -129,7 +129,6 @@ func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrLis
 		return nil, fmt.Errorf("unsupported")
 	}
 	copy(msg, payload)
-	msg = append(msg, attr.Bytes()...)
 
 	self.lock.Lock()
 	self.unicast[self.sock.SeqNext] = res

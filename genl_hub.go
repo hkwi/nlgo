@@ -220,7 +220,7 @@ func NewGenlHub() (*GenlHub, error) {
 	}()
 
 	self.Add("nlctrl", "notify", self)
-	if res, err := self.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, nil); err != nil {
+	if res, err := self.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil); err != nil {
 		return nil, err
 	} else {
 		for _, r := range res {
@@ -292,7 +292,7 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 	self.sync()
 }
 
-func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint16, payload []byte, attr AttrList) ([]GenlMessage, error) {
+func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint16, payload []byte) ([]GenlMessage, error) {
 	var familyInfo GenlFamily
 	familyInfoMiss := true
 	self.lock.Lock()
@@ -315,7 +315,6 @@ func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint1
 		Version: version,
 	}
 	copy(msg[GENL_HDRLEN:], payload)
-	msg = append(msg, attr.Bytes()...)
 
 	if err := func() error {
 		self.lock.Lock()
