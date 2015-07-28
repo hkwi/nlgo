@@ -44,103 +44,6 @@ func (self Attr) Field() uint16 {
 	return self.Header.Type & NLA_TYPE_MASK
 }
 
-func (self Attr) Bytes() []byte {
-	var length int
-	var buf []byte
-
-	if payload, ok := self.Value.(Attr); ok {
-		p := payload.Bytes()
-		buf = make([]byte, NLA_ALIGN(NLA_HDRLEN+len(p)))
-		copy(buf[NLA_HDRLEN:], p)
-		self.Header.Len = uint16(NLA_HDRLEN + len(p))
-		*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = self.Header
-		return buf
-	}
-	switch SimplePolicy(self.Field()) {
-	case NLA_U8:
-		length = syscall.SizeofNlAttr + 1
-		buf = make([]byte, NLA_ALIGN(length))
-		buf[NLA_HDRLEN] = self.Value.(uint8)
-	case NLA_S8:
-		length = syscall.SizeofNlAttr + 1
-		buf = make([]byte, NLA_ALIGN(length))
-		buf[NLA_HDRLEN] = uint8(self.Value.(int8))
-	case NLA_U16:
-		length = syscall.SizeofNlAttr + 2
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*uint16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint16)
-		} else {
-			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], self.Value.(uint16))
-		}
-	case NLA_S16:
-		length = syscall.SizeofNlAttr + 2
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*int16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int16)
-		} else {
-			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], uint16(self.Value.(int16)))
-		}
-	case NLA_U32:
-		length = syscall.SizeofNlAttr + 4
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint32)
-		} else {
-			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], self.Value.(uint32))
-		}
-	case NLA_S32:
-		length = syscall.SizeofNlAttr + 4
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*int32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int32)
-		} else {
-			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], uint32(self.Value.(int32)))
-		}
-	case NLA_U64, NLA_MSECS:
-		length = syscall.SizeofNlAttr + 8
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*uint64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint64)
-		} else {
-			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], self.Value.(uint64))
-		}
-	case NLA_S64:
-		length = syscall.SizeofNlAttr + 8
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*int64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int64)
-		} else {
-			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], uint64(self.Value.(int64)))
-		}
-	case NLA_STRING, NLA_NUL_STRING:
-		vbytes := []byte(self.Value.(string))
-		if len(vbytes) > 0 && vbytes[len(vbytes)-1] != 0 {
-			vbytes = append(vbytes, 0) // NULL-termination
-		}
-		length = syscall.SizeofNlAttr + len(vbytes)
-		buf = make([]byte, NLA_ALIGN(length))
-		copy(buf[NLA_HDRLEN:], vbytes)
-	case NLA_BINARY:
-		vbytes := self.Value.([]byte)
-		length = syscall.SizeofNlAttr + len(vbytes)
-		buf = make([]byte, NLA_ALIGN(length))
-		copy(buf[NLA_HDRLEN:], vbytes)
-	case NLA_FLAG:
-		length = syscall.SizeofNlAttr
-		buf = make([]byte, NLA_ALIGN(length))
-	case NLA_NESTED, NLA_NESTED_COMPAT:
-		self.Header.Type |= syscall.NLA_F_NESTED
-		vbytes := self.Value.(AttrList).Bytes()
-		length = syscall.SizeofNlAttr + len(vbytes)
-		buf = make([]byte, NLA_ALIGN(length))
-		copy(buf[NLA_HDRLEN:], vbytes)
-	}
-	self.Header.Len = uint16(length)
-	*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = self.Header
-	return buf
-}
-
 type AttrList []Attr
 
 func (self AttrList) Get(field uint16) interface{} {
@@ -152,16 +55,9 @@ func (self AttrList) Get(field uint16) interface{} {
 	return nil
 }
 
-func (self AttrList) Bytes() []byte {
-	var ret []byte
-	for _, attr := range []Attr(self) {
-		ret = append(ret, attr.Bytes()...)
-	}
-	return ret
-}
-
 type Policy interface {
 	Parse([]byte) (AttrList, error)
+	Bytes(attrs AttrList) []byte
 }
 
 const NLA_TYPE_MASK = ^uint16(syscall.NLA_F_NESTED | syscall.NLA_F_NET_BYTEORDER)
@@ -194,6 +90,11 @@ func (self SimplePolicy) Parse(nla []byte) (AttrList, error) {
 	} else {
 		return []Attr{attr}, nil
 	}
+}
+
+func (self SimplePolicy) Bytes(attrs AttrList) []byte {
+	// XXX: SimplePolicy's Policy interface methods are never called
+	panic("Unexpected SimplePolicy.Bytes()")
 }
 
 func (self SimplePolicy) ParseOne(nla []byte) (attr Attr, err error) {
@@ -274,6 +175,95 @@ func (self SimplePolicy) ParseOne(nla []byte) (attr Attr, err error) {
 	return
 }
 
+func (self SimplePolicy) BytesOne(attr Attr) []byte {
+	var length int
+	var buf []byte
+
+	switch self {
+	case NLA_U8:
+		length = syscall.SizeofNlAttr + 1
+		buf = make([]byte, NLA_ALIGN(length))
+		buf[NLA_HDRLEN] = attr.Value.(uint8)
+	case NLA_S8:
+		length = syscall.SizeofNlAttr + 1
+		buf = make([]byte, NLA_ALIGN(length))
+		buf[NLA_HDRLEN] = uint8(attr.Value.(int8))
+	case NLA_U16:
+		length = syscall.SizeofNlAttr + 2
+		buf = make([]byte, NLA_ALIGN(length))
+		if attr.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*uint16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = attr.Value.(uint16)
+		} else {
+			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], attr.Value.(uint16))
+		}
+	case NLA_S16:
+		length = syscall.SizeofNlAttr + 2
+		buf = make([]byte, NLA_ALIGN(length))
+		if attr.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*int16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = attr.Value.(int16)
+		} else {
+			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], uint16(attr.Value.(int16)))
+		}
+	case NLA_U32:
+		length = syscall.SizeofNlAttr + 4
+		buf = make([]byte, NLA_ALIGN(length))
+		if attr.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = attr.Value.(uint32)
+		} else {
+			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], attr.Value.(uint32))
+		}
+	case NLA_S32:
+		length = syscall.SizeofNlAttr + 4
+		buf = make([]byte, NLA_ALIGN(length))
+		if attr.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*int32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = attr.Value.(int32)
+		} else {
+			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], uint32(attr.Value.(int32)))
+		}
+	case NLA_U64, NLA_MSECS:
+		length = syscall.SizeofNlAttr + 8
+		buf = make([]byte, NLA_ALIGN(length))
+		if attr.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*uint64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = attr.Value.(uint64)
+		} else {
+			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], attr.Value.(uint64))
+		}
+	case NLA_S64:
+		length = syscall.SizeofNlAttr + 8
+		buf = make([]byte, NLA_ALIGN(length))
+		if attr.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
+			*(*int64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = attr.Value.(int64)
+		} else {
+			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], uint64(attr.Value.(int64)))
+		}
+	case NLA_STRING, NLA_NUL_STRING:
+		vbytes := []byte(attr.Value.(string))
+		if len(vbytes) > 0 && vbytes[len(vbytes)-1] != 0 {
+			vbytes = append(vbytes, 0) // NULL-termination
+		}
+		length = syscall.SizeofNlAttr + len(vbytes)
+		buf = make([]byte, NLA_ALIGN(length))
+		copy(buf[NLA_HDRLEN:], vbytes)
+	case NLA_BINARY:
+		vbytes := attr.Value.([]byte)
+		length = syscall.SizeofNlAttr + len(vbytes)
+		buf = make([]byte, NLA_ALIGN(length))
+		copy(buf[NLA_HDRLEN:], vbytes)
+	case NLA_FLAG:
+		length = syscall.SizeofNlAttr
+		buf = make([]byte, NLA_ALIGN(length))
+	case NLA_NESTED, NLA_NESTED_COMPAT:
+		attr.Header.Type |= syscall.NLA_F_NESTED
+		vbytes := attr.Value.([]byte)
+		length = syscall.SizeofNlAttr + len(vbytes)
+		buf = make([]byte, NLA_ALIGN(length))
+		copy(buf[NLA_HDRLEN:], vbytes)
+	}
+	attr.Header.Len = uint16(length)
+	*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = attr.Header
+	return buf
+}
+
 func NlaStringRemoveNul(a string) string {
 	return strings.Split(a, "\x00")[0]
 }
@@ -317,6 +307,25 @@ func (self ListPolicy) Parse(buf []byte) (AttrList, error) {
 		}
 	}
 	return ret, nil
+}
+
+func (self ListPolicy) Bytes(attrs AttrList) []byte {
+	var ret []byte
+
+	switch policy := self.Nested.(type) {
+	case SimplePolicy:
+		for _, attr := range attrs {
+			ret = append(ret, policy.BytesOne(attr)...)
+		}
+	default:
+		for _, attrList := range attrs {
+			buf := self.Nested.Bytes(attrList.Value.(AttrList))
+			attr := Attr{Header: attrList.Header, Value: buf}
+
+			ret = append(ret, NLA_BINARY.BytesOne(attr)...)
+		}
+	}
+	return ret
 }
 
 func (self ListPolicy) Dump(attrs AttrList) string {
@@ -378,6 +387,25 @@ func (self MapPolicy) Parse(buf []byte) (AttrList, error) {
 		buf = buf[NLA_ALIGN(int(hdr.Len)):]
 	}
 	return ret, nil
+}
+
+func (self MapPolicy) Bytes(attrs AttrList) []byte {
+	var ret []byte
+
+	for _, attr := range attrs {
+		policy := self.Rule[attr.Field()]
+
+		switch policy.(type) {
+		case SimplePolicy:
+			ret = append(ret, policy.(SimplePolicy).BytesOne(attr)...)
+
+		default:
+			buf := policy.Bytes(attr.Value.(AttrList))
+			subAttr := Attr{Header: attr.Header, Value: buf}
+			ret = append(ret, NLA_NESTED.BytesOne(subAttr)...)
+		}
+	}
+	return ret
 }
 
 func (self MapPolicy) Dump(attrs AttrList) string {
