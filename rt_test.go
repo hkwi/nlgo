@@ -4,7 +4,9 @@ package nlgo
 
 import (
 	"log"
+	"net"
 	"syscall"
+	"testing"
 	"unsafe"
 )
 
@@ -85,6 +87,47 @@ func ExampleNlSocketAddMembership() {
 					}
 				default:
 					log.Print("unhandled msg")
+				}
+			}
+		}
+	}
+}
+
+func TestRoute(t *testing.T) {
+	if hub, err := NewRtHub(); err != nil {
+		panic(err)
+	} else {
+		defer hub.Close()
+
+		if msgs, err := hub.Request(
+			syscall.RTM_GETROUTE,
+			syscall.NLM_F_REQUEST,
+			(*[syscall.SizeofRtMsg]byte)(unsafe.Pointer(&syscall.RtMsg{
+				Family: syscall.AF_INET6,
+			}))[:],
+			AttrList{
+				Attr{
+					Header: syscall.NlAttr{
+						Type: syscall.RTA_DST,
+					},
+					Value: Binary(net.ParseIP("2001:503:ba3e::2:30").To16()),
+				},
+			},
+		); err != nil {
+			panic(err)
+		} else {
+			for _, msg := range msgs {
+				if msg.Error != nil {
+					t.Error(msg.Error)
+					continue
+				}
+				switch msg.Message.Header.Type {
+				case syscall.RTM_NEWROUTE:
+					if attr, err := RoutePolicy.Parse(msg.Message.Data[NLMSG_ALIGN(syscall.SizeofRtMsg):]); err != nil {
+						t.Error(err)
+					} else {
+						t.Log(attr)
+					}
 				}
 			}
 		}

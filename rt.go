@@ -190,3 +190,47 @@ var RouteLinkPolicy MapPolicy = MapPolicy{
 		IFLA_GROUP:    U32Policy,
 	},
 }
+
+const (
+	RTA_UNSPEC = iota
+	RTA_DST
+	RTA_SRC
+	RTA_IIF
+	RTA_OIF
+	RTA_GATEWAY
+	RTA_PRIORITY
+	RTA_PREFSRC
+	RTA_METRICS
+	RTA_MULTIPATH
+	RTA_PROTOINFO
+	RTA_FLOW
+	RTA_CACHEINFO
+	RTA_SESSION
+	RTA_MP_ALGO
+	RTA_TABLE
+	RTA_MARK
+	RTA_MFC_STATS
+)
+
+var RoutePolicy MapPolicy = MapPolicy{
+	Prefix: "RTA",
+	Names:  RTA_itoa,
+	Rule: map[uint16]Policy{
+		RTA_DST:      BinaryPolicy,
+		RTA_SRC:      BinaryPolicy,
+		RTA_IIF:      U32Policy,
+		RTA_OIF:      U32Policy,
+		RTA_GATEWAY:  BinaryPolicy,
+		RTA_PRIORITY: U32Policy,
+		RTA_PREFSRC:  BinaryPolicy,
+		RTA_METRICS: ListPolicy{
+			Nested: U32Policy,
+		},
+		RTA_MULTIPATH: BinaryPolicy,
+		RTA_FLOW:      U32Policy,
+		RTA_CACHEINFO: BinaryPolicy,
+		RTA_TABLE:     U32Policy,
+		RTA_MARK:      U32Policy,
+		RTA_MFC_STATS: BinaryPolicy,
+	},
+}
