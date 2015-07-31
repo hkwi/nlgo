@@ -87,18 +87,18 @@ var CtrlPolicy MapPolicy = MapPolicy{
 	Prefix: "CTRL_ATTR",
 	Names:  CTRL_ATTR_itoa,
 	Rule: map[uint16]Policy{
-		CTRL_ATTR_FAMILY_ID:   NLA_U16,
-		CTRL_ATTR_FAMILY_NAME: NLA_STRING,
-		CTRL_ATTR_VERSION:     NLA_U32,
-		CTRL_ATTR_HDRSIZE:     NLA_U32,
-		CTRL_ATTR_MAXATTR:     NLA_U32,
+		CTRL_ATTR_FAMILY_ID:   U16Policy,
+		CTRL_ATTR_FAMILY_NAME: StringPolicy,
+		CTRL_ATTR_VERSION:     U32Policy,
+		CTRL_ATTR_HDRSIZE:     U32Policy,
+		CTRL_ATTR_MAXATTR:     U32Policy,
 		CTRL_ATTR_OPS: ListPolicy{
 			Nested: MapPolicy{
 				Prefix: "OP",
 				Names:  CTRL_ATTR_OP_itoa,
 				Rule: map[uint16]Policy{
-					CTRL_ATTR_OP_ID:    NLA_U32,
-					CTRL_ATTR_OP_FLAGS: NLA_U32,
+					CTRL_ATTR_OP_ID:    U32Policy,
+					CTRL_ATTR_OP_FLAGS: U32Policy,
 				},
 			},
 		},
@@ -107,8 +107,8 @@ var CtrlPolicy MapPolicy = MapPolicy{
 				Prefix: "MCAST_GRP",
 				Names:  CTRL_ATTR_MCAST_GRP_itoa,
 				Rule: map[uint16]Policy{
-					CTRL_ATTR_MCAST_GRP_NAME: NLA_STRING,
-					CTRL_ATTR_MCAST_GRP_ID:   NLA_U32,
+					CTRL_ATTR_MCAST_GRP_NAME: StringPolicy,
+					CTRL_ATTR_MCAST_GRP_ID:   U32Policy,
 				},
 			},
 		},

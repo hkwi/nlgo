@@ -242,8 +242,10 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 	groups := make(map[uint32]GenlGroup)
 	if attrs, err := CtrlPolicy.Parse(msg.Payload); err != nil {
 		log.Print(err)
+	} else if amap, ok := attrs.(AttrMap); !ok {
+		fmt.Printf("unknown genl family structure %v", attrs)
 	} else {
-		family.FromAttrs(attrs)
+		family.FromAttrs(amap)
 
 		familyName := func() string {
 			self.lock.Lock()
@@ -253,14 +255,14 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 			}
 			return family.Name
 		}()
-		if grps := attrs.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
+		if grps := amap.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
 			for _, grp := range []Attr(grps.(AttrList)) {
 				gattr := grp.Value.(AttrList)
-				key := gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(uint32)
+				key := uint32(gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(U32))
 				groups[key] = GenlGroup{
 					Id:     key,
 					Family: familyName,
-					Name:   NlaStringRemoveNul(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(string)),
+					Name:   string(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(String)),
 				}
 			}
 		}

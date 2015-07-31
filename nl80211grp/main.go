@@ -23,18 +23,20 @@ func main() {
 	if n, _, _, _, err := syscall.Recvmsg(sk.Fd, data, nil, 0); err != nil {
 		panic(err)
 	} else if msgs, err := syscall.ParseNetlinkMessage(data[:n]); err != nil {
-		log.Print(err)
+		log.Print("X", err)
 	} else {
 		for _, msg := range msgs {
 			genl := *(*nlgo.GenlMsghdr)(unsafe.Pointer(&msg.Data[0]))
 			if msg.Header.Type == nlgo.GENL_ID_CTRL && genl.Cmd == nlgo.CTRL_CMD_NEWFAMILY {
 				if attr, err := nlgo.CtrlPolicy.Parse(msg.Data[nlgo.GENL_HDRLEN:]); err != nil {
 					log.Print(err)
-				} else if value := attr.Get(nlgo.CTRL_ATTR_FAMILY_NAME); value == "nl80211\x00" {
-					log.Printf("%#v", nlgo.CtrlPolicy.Dump(attr))
-					for _, g := range []nlgo.Attr(attr.Get(nlgo.CTRL_ATTR_MCAST_GROUPS).(nlgo.AttrList)) {
-						group := g.Value.(nlgo.AttrList)
-						pid := group.Get(nlgo.CTRL_ATTR_MCAST_GRP_ID).(uint32)
+				} else if amap, ok := attr.(nlgo.AttrMap); !ok {
+					log.Print(attr)
+				} else if value := amap.Get(nlgo.CTRL_ATTR_FAMILY_NAME).(nlgo.String); string(value) == "nl80211\x00" {
+					log.Printf("%v", attr)
+					for _, g := range []nlgo.Attr(amap.Get(nlgo.CTRL_ATTR_MCAST_GROUPS).(nlgo.AttrList)) {
+						group := g.Value.(nlgo.AttrMap)
+						pid := group.Get(nlgo.CTRL_ATTR_MCAST_GRP_ID).(nlgo.U32)
 						if err := nlgo.NlSocketAddMembership(nl80211, int(pid)); err != nil {
 							log.Print(err)
 						}
@@ -51,14 +53,14 @@ func main() {
 		if n, _, _, _, err := syscall.Recvmsg(nl80211.Fd, data, nil, 0); err != nil {
 			panic(err)
 		} else if msgs, err := syscall.ParseNetlinkMessage(data[:n]); err != nil {
-			log.Print(err)
+			log.Print("Y", err)
 		} else {
 			for _, msg := range msgs {
 				genl := (*nlgo.GenlMsghdr)(unsafe.Pointer(&msg.Data[0]))
 				if attr, err := nlgo.Nl80211Policy.Parse(msg.Data[nlgo.GENL_HDRLEN:]); err != nil {
-					log.Print(err)
+					log.Print("Z", err)
 				} else {
-					log.Printf("NL80211_CMD_%s attrs=%s", nlgo.NL80211_CMD_itoa[genl.Cmd], nlgo.Nl80211Policy.Dump(attr))
+					log.Printf("NL80211_CMD_%s attrs=%s", nlgo.NL80211_CMD_itoa[genl.Cmd], attr)
 				}
 			}
 		}

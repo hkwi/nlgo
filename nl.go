@@ -8,8 +8,6 @@
 package nlgo
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"strings"
 	"sync"
@@ -32,12 +30,19 @@ func NLA_ALIGN(size int) int {
 
 var NLA_HDRLEN int = NLA_ALIGN(syscall.SizeofNlAttr)
 
+const NLA_TYPE_MASK = ^uint16(syscall.NLA_F_NESTED | syscall.NLA_F_NET_BYTEORDER)
+
+type NlaValue interface {
+	// returns the entire nlattr byte sequence including header and trailing alignment padding
+	Build(syscall.NlAttr) []byte
+}
+
 // Attr represents single netlink attribute package.
 // Developer memo: syscall.ParseNetlinkRouteAttr does not parse nested attributes.
-// I wanted to make deep parser, and this is because Value is defined as interface{}.
+// I wanted to make deep parser.
 type Attr struct {
 	Header syscall.NlAttr
-	Value  interface{}
+	Value  NlaValue
 }
 
 func (self Attr) Field() uint16 {
@@ -45,105 +50,16 @@ func (self Attr) Field() uint16 {
 }
 
 func (self Attr) Bytes() []byte {
-	var length int
-	var buf []byte
+	return self.Value.Build(self.Header)
+}
 
-	if payload, ok := self.Value.(Attr); ok {
-		p := payload.Bytes()
-		buf = make([]byte, NLA_ALIGN(NLA_HDRLEN+len(p)))
-		copy(buf[NLA_HDRLEN:], p)
-		self.Header.Len = uint16(NLA_HDRLEN + len(p))
-		*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = self.Header
-		return buf
-	}
-	switch SimplePolicy(self.Field()) {
-	case NLA_U8:
-		length = syscall.SizeofNlAttr + 1
-		buf = make([]byte, NLA_ALIGN(length))
-		buf[NLA_HDRLEN] = self.Value.(uint8)
-	case NLA_S8:
-		length = syscall.SizeofNlAttr + 1
-		buf = make([]byte, NLA_ALIGN(length))
-		buf[NLA_HDRLEN] = uint8(self.Value.(int8))
-	case NLA_U16:
-		length = syscall.SizeofNlAttr + 2
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*uint16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint16)
-		} else {
-			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], self.Value.(uint16))
-		}
-	case NLA_S16:
-		length = syscall.SizeofNlAttr + 2
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*int16)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int16)
-		} else {
-			binary.BigEndian.PutUint16(buf[NLA_HDRLEN:], uint16(self.Value.(int16)))
-		}
-	case NLA_U32:
-		length = syscall.SizeofNlAttr + 4
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*uint32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint32)
-		} else {
-			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], self.Value.(uint32))
-		}
-	case NLA_S32:
-		length = syscall.SizeofNlAttr + 4
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*int32)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int32)
-		} else {
-			binary.BigEndian.PutUint32(buf[NLA_HDRLEN:], uint32(self.Value.(int32)))
-		}
-	case NLA_U64, NLA_MSECS:
-		length = syscall.SizeofNlAttr + 8
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*uint64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(uint64)
-		} else {
-			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], self.Value.(uint64))
-		}
-	case NLA_S64:
-		length = syscall.SizeofNlAttr + 8
-		buf = make([]byte, NLA_ALIGN(length))
-		if self.Header.Type&syscall.NLA_F_NET_BYTEORDER == 0 {
-			*(*int64)(unsafe.Pointer(&buf[NLA_HDRLEN])) = self.Value.(int64)
-		} else {
-			binary.BigEndian.PutUint64(buf[NLA_HDRLEN:], uint64(self.Value.(int64)))
-		}
-	case NLA_STRING, NLA_NUL_STRING:
-		vbytes := []byte(self.Value.(string))
-		if len(vbytes) > 0 && vbytes[len(vbytes)-1] != 0 {
-			vbytes = append(vbytes, 0) // NULL-termination
-		}
-		length = syscall.SizeofNlAttr + len(vbytes)
-		buf = make([]byte, NLA_ALIGN(length))
-		copy(buf[NLA_HDRLEN:], vbytes)
-	case NLA_BINARY:
-		vbytes := self.Value.([]byte)
-		length = syscall.SizeofNlAttr + len(vbytes)
-		buf = make([]byte, NLA_ALIGN(length))
-		copy(buf[NLA_HDRLEN:], vbytes)
-	case NLA_FLAG:
-		length = syscall.SizeofNlAttr
-		buf = make([]byte, NLA_ALIGN(length))
-	case NLA_NESTED, NLA_NESTED_COMPAT:
-		self.Header.Type |= syscall.NLA_F_NESTED
-		vbytes := self.Value.(AttrList).Bytes()
-		length = syscall.SizeofNlAttr + len(vbytes)
-		buf = make([]byte, NLA_ALIGN(length))
-		copy(buf[NLA_HDRLEN:], vbytes)
-	}
-	self.Header.Len = uint16(length)
-	*(*syscall.NlAttr)(unsafe.Pointer(&buf[0])) = self.Header
-	return buf
+func (self Attr) Build(hdr syscall.NlAttr) []byte {
+	return String(self.Bytes()).Build(hdr)
 }
 
 type AttrList []Attr
 
-func (self AttrList) Get(field uint16) interface{} {
+func (self AttrList) Get(field uint16) NlaValue {
 	for _, attr := range []Attr(self) {
 		if attr.Field() == field {
 			return attr.Value
@@ -155,187 +71,166 @@ func (self AttrList) Get(field uint16) interface{} {
 func (self AttrList) Bytes() []byte {
 	var ret []byte
 	for _, attr := range []Attr(self) {
-		ret = append(ret, attr.Bytes()...)
+		ret = append(ret, attr.Value.Build(attr.Header)...)
 	}
 	return ret
 }
 
-type Policy interface {
-	Parse([]byte) (AttrList, error)
+func (self AttrList) Build(hdr syscall.NlAttr) []byte {
+	return String(self.Bytes()).Build(hdr)
 }
 
-const NLA_TYPE_MASK = ^uint16(syscall.NLA_F_NESTED | syscall.NLA_F_NET_BYTEORDER)
+func (self AttrList) String() string {
+	var comps []string
+	for _, attr := range []Attr(self) {
+		comps = append(comps, fmt.Sprintf("%d: %v", attr.Field(), attr.Value))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(comps, ", "))
+}
 
-// SimplePolicy represents non-nested, native byteorder netlink attribute policy.
-type SimplePolicy uint16
+type Policy interface {
+	Parse([]byte) (NlaValue, error)
+}
+
+type SinglePolicy int
 
 const (
-	NLA_UNSPEC SimplePolicy = iota
-	NLA_U8
-	NLA_U16
-	NLA_U32
-	NLA_U64
-	NLA_STRING
-	NLA_FLAG
-	NLA_MSECS
-	NLA_NESTED
-	NLA_NESTED_COMPAT
-	NLA_NUL_STRING
-	NLA_BINARY
-	NLA_S8
-	NLA_S16
-	NLA_S32
-	NLA_S64
+	U8Policy SinglePolicy = iota
+	U16Policy
+	U32Policy
+	U64Policy
+	StringPolicy
+	NulStringPolicy
+	FlagPolicy
+	S8Policy
+	S16Policy
+	S32Policy
+	S64Policy
 )
 
-func (self SimplePolicy) Parse(nla []byte) (AttrList, error) {
-	if attr, err := self.ParseOne(nla); err != nil {
-		return nil, err
-	} else {
-		return []Attr{attr}, nil
-	}
-}
-
-func (self SimplePolicy) ParseOne(nla []byte) (attr Attr, err error) {
-	if len(nla) < NLA_HDRLEN {
-		err = NLE_RANGE
-		return
+func (self SinglePolicy) Parse(nla []byte) (NlaValue, error) {
+	if len(nla) < syscall.SizeofNlAttr {
+		panic("s1")
+		return nil, NLE_RANGE
 	}
 	hdr := (*syscall.NlAttr)(unsafe.Pointer(&nla[0]))
-	if int(hdr.Len) < NLA_HDRLEN {
-		err = NLE_RANGE
-		return
+	if int(hdr.Len) < NLA_HDRLEN || int(hdr.Len) > len(nla) {
+		panic("s2")
+		return nil, NLE_RANGE
 	}
-	attr.Header = *hdr
-
-	// may add validation and return an error
+	attr := Attr{
+		Header: *hdr,
+		Value:  String(nla[NLA_HDRLEN:hdr.Len]),
+	}
+	var err error
 	switch self {
+	case U8Policy:
+		err = setU8(&attr)
+	case U16Policy:
+		err = setU16(&attr)
+	case U32Policy:
+		err = setU32(&attr)
+	case U64Policy:
+		err = setU64(&attr)
+	case StringPolicy:
+		// do nothing
+	case NulStringPolicy:
+		err = setNulString(&attr)
+	case FlagPolicy:
+		err = setFlag(&attr)
+	case S8Policy:
+		err = setS8(&attr)
+	case S16Policy:
+		err = setS16(&attr)
+	case S32Policy:
+		err = setS32(&attr)
+	case S64Policy:
+		err = setS64(&attr)
 	default:
-		err = NLE_INVAL
-	case NLA_U8:
-		if int(hdr.Len) != NLA_HDRLEN+1 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = nla[0]
-		}
-	case NLA_S8:
-		if int(hdr.Len) != NLA_HDRLEN+1 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = int8(nla[NLA_HDRLEN])
-		}
-	case NLA_U16:
-		if int(hdr.Len) != NLA_HDRLEN+2 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = *(*uint16)(unsafe.Pointer(&nla[NLA_HDRLEN]))
-		}
-	case NLA_S16:
-		if int(hdr.Len) != NLA_HDRLEN+2 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = *(*int16)(unsafe.Pointer(&nla[NLA_HDRLEN]))
-		}
-	case NLA_U32:
-		if int(hdr.Len) != NLA_HDRLEN+4 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = *(*uint32)(unsafe.Pointer(&nla[NLA_HDRLEN]))
-		}
-	case NLA_S32:
-		if int(hdr.Len) != NLA_HDRLEN+4 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = *(*int32)(unsafe.Pointer(&nla[NLA_HDRLEN]))
-		}
-	case NLA_U64:
-		if int(hdr.Len) != NLA_HDRLEN+8 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = *(*uint64)(unsafe.Pointer(&nla[NLA_HDRLEN]))
-		}
-	case NLA_S64:
-		if int(hdr.Len) != NLA_HDRLEN+8 {
-			err = NLE_RANGE
-		} else {
-			attr.Value = *(*int64)(unsafe.Pointer(&nla[NLA_HDRLEN]))
-		}
-	case NLA_STRING:
-		attr.Value = string(nla[NLA_HDRLEN:hdr.Len])
-	case NLA_BINARY:
-		attr.Value = nla[NLA_HDRLEN:hdr.Len]
-	case NLA_FLAG:
-		attr.Value = true
-	case NLA_MSECS:
-		attr.Value = *(*uint64)(unsafe.Pointer(&nla[NLA_HDRLEN]))
-	case NLA_NUL_STRING:
-		attr.Value = string(bytes.Split(nla[NLA_HDRLEN:hdr.Len], []byte{0})[0])
+		err = fmt.Errorf("unknown single policy")
 	}
-	return
+	return attr, err
 }
 
-func NlaStringRemoveNul(a string) string {
-	return strings.Split(a, "\x00")[0]
-}
-
-func NlaStringEquals(a, b string) bool {
-	return NlaStringRemoveNul(a) == NlaStringRemoveNul(b)
+func parseElement(p Policy, attr *Attr) error {
+	if p != nil {
+		switch policy := p.(type) {
+		case SinglePolicy:
+			if value, err := policy.Parse(attr.Bytes()); err != nil {
+				return err
+			} else {
+				*attr = value.(Attr)
+			}
+		default:
+			if value, err := policy.Parse([]byte(attr.Value.(String))); err != nil {
+				return err
+			} else {
+				attr.Value = value
+			}
+		}
+	} else if attr.Header.Type&syscall.NLA_F_NESTED != 0 {
+		if list, err := SimpleListPolicy.Parse([]byte(attr.Value.(String))); err != nil {
+			return err
+		} else {
+			attr.Value = list
+		}
+	}
+	return nil
 }
 
 type ListPolicy struct {
 	Nested Policy
 }
 
-func (self ListPolicy) Parse(buf []byte) (AttrList, error) {
-	var ret []Attr
+var SimpleListPolicy ListPolicy
 
-	switch policy := self.Nested.(type) {
-	case SimplePolicy:
-		for len(buf) > NLA_HDRLEN {
-			if attr, err := policy.ParseOne(buf); err != nil {
-				return nil, err
-			} else {
-				ret = append(ret, attr)
-				buf = buf[NLA_ALIGN(int(attr.Header.Len)):]
-			}
+func (self ListPolicy) Parse(nla []byte) (NlaValue, error) {
+	var attrs []Attr
+	for len(nla) >= NLA_HDRLEN {
+		var attr Attr
+		if sattr, err := StringPolicy.Parse(nla); err != nil {
+			return nil, err
+		} else {
+			attr = sattr.(Attr)
 		}
-	default:
-		for len(buf) > NLA_HDRLEN {
-			hdr := (*syscall.NlAttr)(unsafe.Pointer(&buf[0]))
-			if int(hdr.Len) > len(buf) {
-				return nil, NLE_RANGE
-			}
-			if attrs, err := self.Nested.Parse(buf[NLA_HDRLEN:hdr.Len]); err != nil {
-				return nil, err
-			} else {
-				ret = append(ret, Attr{
-					Header: *hdr,
-					Value:  attrs,
-				})
-			}
-			buf = buf[NLA_ALIGN(int(hdr.Len)):]
+		if err := parseElement(self.Nested, &attr); err != nil {
+			return nil, err
 		}
+		attrs = append(attrs, attr)
+		nla = nla[NLA_ALIGN(int(attr.Header.Len)):]
 	}
-	return ret, nil
+	return AttrList(attrs), nil
 }
 
-func (self ListPolicy) Dump(attrs AttrList) string {
+type AttrMap struct {
+	Policy MapPolicy
+	Items  []Attr
+}
+
+func (self AttrMap) Build(hdr syscall.NlAttr) []byte {
+	var ret []byte
+	for _, attr := range self.Items {
+		ret = append(ret, attr.Bytes()...)
+	}
+	return ret
+}
+
+func (self AttrMap) String() string {
 	var comps []string
-	for _, attr := range []Attr(attrs) {
+	for _, attr := range self.Items {
 		field := attr.Field()
-		switch policy := self.Nested.(type) {
-		default:
-			comps = append(comps, fmt.Sprintf("%d: %#v", field, attr.Value))
-		case MapPolicy:
-			comps = append(comps, fmt.Sprintf("%d: %s", field, policy.Dump(attr.Value.(AttrList))))
-		case ListPolicy:
-			comps = append(comps, fmt.Sprintf("%d: %s", field, policy.Dump(attr.Value.(AttrList))))
+		name := "?"
+		if n, ok := self.Policy.Names[field]; ok {
+			name = n
 		}
+		comps = append(comps, fmt.Sprintf("%s: %v", name, attr.Value))
 	}
-	return fmt.Sprintf("[%s]", strings.Join(comps, ", "))
+	return fmt.Sprintf("%s(%s)", self.Policy.Prefix, strings.Join(comps, ", "))
 }
 
-var binList Policy = ListPolicy{Nested: NLA_BINARY}
+func (self AttrMap) Get(field uint16) NlaValue {
+	return AttrList(self.Items).Get(field)
+}
 
 type MapPolicy struct {
 	Prefix string
@@ -343,63 +238,25 @@ type MapPolicy struct {
 	Rule   map[uint16]Policy
 }
 
-func (self MapPolicy) Parse(buf []byte) (AttrList, error) {
-	var ret []Attr
-
-	for len(buf) > NLA_HDRLEN {
-		hdr := (*syscall.NlAttr)(unsafe.Pointer(&buf[0]))
-		if int(hdr.Len) > len(buf) {
-			return nil, NLE_RANGE
-		}
-		attr := Attr{Header: *hdr}
-		if p, ok := self.Rule[hdr.Type&NLA_TYPE_MASK]; ok {
-			switch policy := p.(type) {
-			case SimplePolicy:
-				if fattr, err := policy.ParseOne(buf); err != nil {
-					return nil, err
-				} else {
-					attr = fattr
-				}
-			default:
-				if attrs, err := p.Parse(buf[NLA_HDRLEN:hdr.Len]); err != nil {
-					return nil, err
-				} else {
-					attr.Value = attrs
-				}
-			}
-		} else if hdr.Type&syscall.NLA_F_NESTED == 0 {
-			attr.Value = buf[NLA_HDRLEN:hdr.Len]
-		} else if attrs, err := binList.Parse(buf[NLA_HDRLEN:hdr.Len]); err != nil {
+func (self MapPolicy) Parse(nla []byte) (NlaValue, error) {
+	var attrs []Attr
+	for len(nla) >= NLA_HDRLEN {
+		var attr Attr
+		if sattr, err := StringPolicy.Parse(nla); err != nil {
 			return nil, err
 		} else {
-			attr.Value = attrs
+			attr = sattr.(Attr)
 		}
-		ret = append(ret, attr)
-		buf = buf[NLA_ALIGN(int(hdr.Len)):]
+		if err := parseElement(self.Rule[attr.Field()], &attr); err != nil {
+			return nil, err
+		}
+		attrs = append(attrs, attr)
+		nla = nla[NLA_ALIGN(int(attr.Header.Len)):]
 	}
-	return ret, nil
-}
-
-func (self MapPolicy) Dump(attrs AttrList) string {
-	var comps []string
-	for _, attr := range []Attr(attrs) {
-		field := attr.Field()
-		name := "?"
-		if n, ok := self.Names[field]; ok {
-			name = n
-		}
-		if p, ok := self.Rule[field]; ok {
-			switch policy := p.(type) {
-			default:
-				comps = append(comps, fmt.Sprintf("%s: %#v", name, attr.Value))
-			case MapPolicy:
-				comps = append(comps, fmt.Sprintf("%s: %s", name, policy.Dump(attr.Value.(AttrList))))
-			case ListPolicy:
-				comps = append(comps, fmt.Sprintf("%s: %s", name, policy.Dump(attr.Value.(AttrList))))
-			}
-		}
-	}
-	return fmt.Sprintf("%s(%s)", self.Prefix, strings.Join(comps, ", "))
+	return AttrMap{
+		Policy: self,
+		Items:  attrs,
+	}, nil
 }
 
 // error.h

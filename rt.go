@@ -110,13 +110,13 @@ var portPolicy Policy = MapPolicy{
 	Prefix: "IFLA_PORT",
 	Names:  IFLA_PORT_itoa,
 	Rule: map[uint16]Policy{
-		IFLA_PORT_VF:            NLA_U32,
-		IFLA_PORT_PROFILE:       NLA_STRING,
-		IFLA_PORT_VSI_TYPE:      NLA_BINARY,
-		IFLA_PORT_INSTANCE_UUID: NLA_BINARY,
-		IFLA_PORT_HOST_UUID:     NLA_STRING,
-		IFLA_PORT_REQUEST:       NLA_U8,
-		IFLA_PORT_RESPONSE:      NLA_U16,
+		IFLA_PORT_VF:            U32Policy,
+		IFLA_PORT_PROFILE:       StringPolicy,
+		IFLA_PORT_VSI_TYPE:      StringPolicy,
+		IFLA_PORT_INSTANCE_UUID: StringPolicy,
+		IFLA_PORT_HOST_UUID:     StringPolicy,
+		IFLA_PORT_REQUEST:       U8Policy,
+		IFLA_PORT_RESPONSE:      U16Policy,
 	},
 }
 
@@ -124,42 +124,42 @@ var RouteLinkPolicy MapPolicy = MapPolicy{
 	Prefix: "IFLA",
 	Names:  IFLA_itoa,
 	Rule: map[uint16]Policy{
-		IFLA_IFNAME:    NLA_STRING,
-		IFLA_ADDRESS:   NLA_BINARY,
-		IFLA_BROADCAST: NLA_BINARY,
-		IFLA_MAP:       NLA_BINARY,
-		IFLA_MTU:       NLA_U32,
-		IFLA_LINK:      NLA_U32,
-		IFLA_MASTER:    NLA_U32,
-		IFLA_CARRIER:   NLA_U8,
-		IFLA_TXQLEN:    NLA_U32,
-		IFLA_WEIGHT:    NLA_U32,
-		IFLA_OPERSTATE: NLA_U8,
-		IFLA_LINKMODE:  NLA_U8,
+		IFLA_IFNAME:    StringPolicy,
+		IFLA_ADDRESS:   StringPolicy,
+		IFLA_BROADCAST: StringPolicy,
+		IFLA_MAP:       StringPolicy,
+		IFLA_MTU:       U32Policy,
+		IFLA_LINK:      U32Policy,
+		IFLA_MASTER:    U32Policy,
+		IFLA_CARRIER:   U8Policy,
+		IFLA_TXQLEN:    U32Policy,
+		IFLA_WEIGHT:    U32Policy,
+		IFLA_OPERSTATE: U8Policy,
+		IFLA_LINKMODE:  U8Policy,
 		IFLA_LINKINFO: MapPolicy{
 			Prefix: "INFO",
 			Names:  IFLA_INFO_itoa,
 			Rule: map[uint16]Policy{
-				IFLA_INFO_KIND:       NLA_STRING,
-				IFLA_INFO_DATA:       NLA_BINARY, // depends on the kind
-				IFLA_INFO_SLAVE_KIND: NLA_STRING,
-				IFLA_INFO_SLAVE_DATA: NLA_BINARY, // depends on the kind
+				IFLA_INFO_KIND:       StringPolicy,
+				IFLA_INFO_DATA:       StringPolicy, // depends on the kind
+				IFLA_INFO_SLAVE_KIND: StringPolicy,
+				IFLA_INFO_SLAVE_DATA: StringPolicy, // depends on the kind
 			},
 		},
-		IFLA_NET_NS_PID: NLA_U32,
-		IFLA_NET_NS_FD:  NLA_U32,
-		IFLA_IFALIAS:    NLA_STRING,
+		IFLA_NET_NS_PID: U32Policy,
+		IFLA_NET_NS_FD:  U32Policy,
+		IFLA_IFALIAS:    StringPolicy,
 		IFLA_VFINFO_LIST: ListPolicy{
 			Nested: MapPolicy{
 				Prefix: "VF",
 				Names:  IFLA_VF_itoa,
 				Rule: map[uint16]Policy{
-					IFLA_VF_MAC:        NLA_BINARY,
-					IFLA_VF_VLAN:       NLA_BINARY,
-					IFLA_VF_TX_RATE:    NLA_BINARY,
-					IFLA_VF_SPOOFCHK:   NLA_BINARY,
-					IFLA_VF_LINK_STATE: NLA_BINARY,
-					IFLA_VF_RATE:       NLA_BINARY,
+					IFLA_VF_MAC:        StringPolicy,
+					IFLA_VF_VLAN:       StringPolicy,
+					IFLA_VF_TX_RATE:    StringPolicy,
+					IFLA_VF_SPOOFCHK:   StringPolicy,
+					IFLA_VF_LINK_STATE: StringPolicy,
+					IFLA_VF_RATE:       StringPolicy,
 				},
 			},
 		},
@@ -173,20 +173,20 @@ var RouteLinkPolicy MapPolicy = MapPolicy{
 			},
 		},
 		IFLA_PORT_SELF:       portPolicy,
-		IFLA_AF_SPEC:         NLA_BINARY, // depends on spec
-		IFLA_EXT_MASK:        NLA_U32,
-		IFLA_PROMISCUITY:     NLA_U32,
-		IFLA_NUM_TX_QUEUES:   NLA_U32,
-		IFLA_NUM_RX_QUEUES:   NLA_U32,
-		IFLA_PHYS_PORT_ID:    NLA_BINARY,
-		IFLA_CARRIER_CHANGES: NLA_U32,
+		IFLA_AF_SPEC:         StringPolicy, // depends on spec
+		IFLA_EXT_MASK:        U32Policy,
+		IFLA_PROMISCUITY:     U32Policy,
+		IFLA_NUM_TX_QUEUES:   U32Policy,
+		IFLA_NUM_RX_QUEUES:   U32Policy,
+		IFLA_PHYS_PORT_ID:    StringPolicy,
+		IFLA_CARRIER_CHANGES: U32Policy,
 
-		IFLA_QDISC:    NLA_STRING,
-		IFLA_STATS:    NLA_BINARY, // struct rtnl_link_stats
-		IFLA_STATS64:  NLA_BINARY, // struct rtnl_link_stats64
-		IFLA_WIRELESS: NLA_BINARY,
-		IFLA_PROTINFO: NLA_BINARY, // depends on prot
-		IFLA_NUM_VF:   NLA_U32,
-		IFLA_GROUP:    NLA_U32,
+		IFLA_QDISC:    StringPolicy,
+		IFLA_STATS:    StringPolicy, // struct rtnl_link_stats
+		IFLA_STATS64:  StringPolicy, // struct rtnl_link_stats64
+		IFLA_WIRELESS: StringPolicy,
+		IFLA_PROTINFO: StringPolicy, // depends on prot
+		IFLA_NUM_VF:   U32Policy,
+		IFLA_GROUP:    U32Policy,
 	},
 }
