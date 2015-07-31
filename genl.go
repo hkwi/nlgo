@@ -88,7 +88,7 @@ var CtrlPolicy MapPolicy = MapPolicy{
 	Names:  CTRL_ATTR_itoa,
 	Rule: map[uint16]Policy{
 		CTRL_ATTR_FAMILY_ID:   U16Policy,
-		CTRL_ATTR_FAMILY_NAME: StringPolicy,
+		CTRL_ATTR_FAMILY_NAME: NulStringPolicy,
 		CTRL_ATTR_VERSION:     U32Policy,
 		CTRL_ATTR_HDRSIZE:     U32Policy,
 		CTRL_ATTR_MAXATTR:     U32Policy,
@@ -107,7 +107,7 @@ var CtrlPolicy MapPolicy = MapPolicy{
 				Prefix: "MCAST_GRP",
 				Names:  CTRL_ATTR_MCAST_GRP_itoa,
 				Rule: map[uint16]Policy{
-					CTRL_ATTR_MCAST_GRP_NAME: StringPolicy,
+					CTRL_ATTR_MCAST_GRP_NAME: NulStringPolicy,
 					CTRL_ATTR_MCAST_GRP_ID:   U32Policy,
 				},
 			},

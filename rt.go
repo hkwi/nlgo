@@ -124,7 +124,7 @@ var RouteLinkPolicy MapPolicy = MapPolicy{
 	Prefix: "IFLA",
 	Names:  IFLA_itoa,
 	Rule: map[uint16]Policy{
-		IFLA_IFNAME:    StringPolicy,
+		IFLA_IFNAME:    NulStringPolicy,
 		IFLA_ADDRESS:   StringPolicy,
 		IFLA_BROADCAST: StringPolicy,
 		IFLA_MAP:       StringPolicy,
