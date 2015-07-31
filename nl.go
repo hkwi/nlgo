@@ -54,7 +54,7 @@ func (self Attr) Bytes() []byte {
 }
 
 func (self Attr) Build(hdr syscall.NlAttr) []byte {
-	return String(self.Bytes()).Build(hdr)
+	return Binary(self.Bytes()).Build(hdr)
 }
 
 type AttrList []Attr
@@ -77,7 +77,7 @@ func (self AttrList) Bytes() []byte {
 }
 
 func (self AttrList) Build(hdr syscall.NlAttr) []byte {
-	return String(self.Bytes()).Build(hdr)
+	return Binary(self.Bytes()).Build(hdr)
 }
 
 func (self AttrList) String() string {
@@ -100,8 +100,9 @@ const (
 	U32Policy
 	U64Policy
 	StringPolicy
-	NulStringPolicy
 	FlagPolicy
+	NulStringPolicy
+	BinaryPolicy
 	S8Policy
 	S16Policy
 	S32Policy
@@ -120,7 +121,7 @@ func (self SinglePolicy) Parse(nla []byte) (NlaValue, error) {
 	}
 	attr := Attr{
 		Header: *hdr,
-		Value:  String(nla[NLA_HDRLEN:hdr.Len]),
+		Value:  Binary(nla[NLA_HDRLEN:hdr.Len]),
 	}
 	var err error
 	switch self {
@@ -132,8 +133,10 @@ func (self SinglePolicy) Parse(nla []byte) (NlaValue, error) {
 		err = setU32(&attr)
 	case U64Policy:
 		err = setU64(&attr)
-	case StringPolicy:
+	case BinaryPolicy:
 		// do nothing
+	case StringPolicy:
+		err = setString(&attr)
 	case NulStringPolicy:
 		err = setNulString(&attr)
 	case FlagPolicy:
@@ -162,14 +165,14 @@ func parseElement(p Policy, attr *Attr) error {
 				*attr = value.(Attr)
 			}
 		default:
-			if value, err := policy.Parse([]byte(attr.Value.(String))); err != nil {
+			if value, err := policy.Parse([]byte(attr.Value.(Binary))); err != nil {
 				return err
 			} else {
 				attr.Value = value
 			}
 		}
 	} else if attr.Header.Type&syscall.NLA_F_NESTED != 0 {
-		if list, err := SimpleListPolicy.Parse([]byte(attr.Value.(String))); err != nil {
+		if list, err := SimpleListPolicy.Parse([]byte(attr.Value.(Binary))); err != nil {
 			return err
 		} else {
 			attr.Value = list
@@ -188,7 +191,7 @@ func (self ListPolicy) Parse(nla []byte) (NlaValue, error) {
 	var attrs []Attr
 	for len(nla) >= NLA_HDRLEN {
 		var attr Attr
-		if sattr, err := StringPolicy.Parse(nla); err != nil {
+		if sattr, err := BinaryPolicy.Parse(nla); err != nil {
 			return nil, err
 		} else {
 			attr = sattr.(Attr)
@@ -242,7 +245,7 @@ func (self MapPolicy) Parse(nla []byte) (NlaValue, error) {
 	var attrs []Attr
 	for len(nla) >= NLA_HDRLEN {
 		var attr Attr
-		if sattr, err := StringPolicy.Parse(nla); err != nil {
+		if sattr, err := BinaryPolicy.Parse(nla); err != nil {
 			return nil, err
 		} else {
 			attr = sattr.(Attr)

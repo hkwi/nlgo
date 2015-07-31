@@ -32,7 +32,7 @@ func main() {
 					log.Print(err)
 				} else if amap, ok := attr.(nlgo.AttrMap); !ok {
 					log.Print(attr)
-				} else if value := amap.Get(nlgo.CTRL_ATTR_FAMILY_NAME).(nlgo.String); string(value) == "nl80211\x00" {
+				} else if value := amap.Get(nlgo.CTRL_ATTR_FAMILY_NAME).(nlgo.NulString); string(value) == "nl80211" {
 					log.Printf("%v", attr)
 					for _, g := range []nlgo.Attr(amap.Get(nlgo.CTRL_ATTR_MCAST_GROUPS).(nlgo.AttrList)) {
 						group := g.Value.(nlgo.AttrMap)

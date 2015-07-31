@@ -111,10 +111,10 @@ var portPolicy Policy = MapPolicy{
 	Names:  IFLA_PORT_itoa,
 	Rule: map[uint16]Policy{
 		IFLA_PORT_VF:            U32Policy,
-		IFLA_PORT_PROFILE:       StringPolicy,
-		IFLA_PORT_VSI_TYPE:      StringPolicy,
-		IFLA_PORT_INSTANCE_UUID: StringPolicy,
-		IFLA_PORT_HOST_UUID:     StringPolicy,
+		IFLA_PORT_PROFILE:       BinaryPolicy,
+		IFLA_PORT_VSI_TYPE:      BinaryPolicy,
+		IFLA_PORT_INSTANCE_UUID: BinaryPolicy,
+		IFLA_PORT_HOST_UUID:     BinaryPolicy,
 		IFLA_PORT_REQUEST:       U8Policy,
 		IFLA_PORT_RESPONSE:      U16Policy,
 	},
@@ -125,9 +125,9 @@ var RouteLinkPolicy MapPolicy = MapPolicy{
 	Names:  IFLA_itoa,
 	Rule: map[uint16]Policy{
 		IFLA_IFNAME:    NulStringPolicy,
-		IFLA_ADDRESS:   StringPolicy,
-		IFLA_BROADCAST: StringPolicy,
-		IFLA_MAP:       StringPolicy,
+		IFLA_ADDRESS:   BinaryPolicy,
+		IFLA_BROADCAST: BinaryPolicy,
+		IFLA_MAP:       BinaryPolicy,
 		IFLA_MTU:       U32Policy,
 		IFLA_LINK:      U32Policy,
 		IFLA_MASTER:    U32Policy,
@@ -140,26 +140,26 @@ var RouteLinkPolicy MapPolicy = MapPolicy{
 			Prefix: "INFO",
 			Names:  IFLA_INFO_itoa,
 			Rule: map[uint16]Policy{
-				IFLA_INFO_KIND:       StringPolicy,
-				IFLA_INFO_DATA:       StringPolicy, // depends on the kind
-				IFLA_INFO_SLAVE_KIND: StringPolicy,
-				IFLA_INFO_SLAVE_DATA: StringPolicy, // depends on the kind
+				IFLA_INFO_KIND:       NulStringPolicy,
+				IFLA_INFO_DATA:       BinaryPolicy, // depends on the kind
+				IFLA_INFO_SLAVE_KIND: BinaryPolicy,
+				IFLA_INFO_SLAVE_DATA: BinaryPolicy, // depends on the kind
 			},
 		},
 		IFLA_NET_NS_PID: U32Policy,
 		IFLA_NET_NS_FD:  U32Policy,
-		IFLA_IFALIAS:    StringPolicy,
+		IFLA_IFALIAS:    NulStringPolicy,
 		IFLA_VFINFO_LIST: ListPolicy{
 			Nested: MapPolicy{
 				Prefix: "VF",
 				Names:  IFLA_VF_itoa,
 				Rule: map[uint16]Policy{
-					IFLA_VF_MAC:        StringPolicy,
-					IFLA_VF_VLAN:       StringPolicy,
-					IFLA_VF_TX_RATE:    StringPolicy,
-					IFLA_VF_SPOOFCHK:   StringPolicy,
-					IFLA_VF_LINK_STATE: StringPolicy,
-					IFLA_VF_RATE:       StringPolicy,
+					IFLA_VF_MAC:        BinaryPolicy,
+					IFLA_VF_VLAN:       BinaryPolicy,
+					IFLA_VF_TX_RATE:    BinaryPolicy,
+					IFLA_VF_SPOOFCHK:   BinaryPolicy,
+					IFLA_VF_LINK_STATE: BinaryPolicy,
+					IFLA_VF_RATE:       BinaryPolicy,
 				},
 			},
 		},
@@ -173,19 +173,19 @@ var RouteLinkPolicy MapPolicy = MapPolicy{
 			},
 		},
 		IFLA_PORT_SELF:       portPolicy,
-		IFLA_AF_SPEC:         StringPolicy, // depends on spec
+		IFLA_AF_SPEC:         BinaryPolicy, // depends on spec
 		IFLA_EXT_MASK:        U32Policy,
 		IFLA_PROMISCUITY:     U32Policy,
 		IFLA_NUM_TX_QUEUES:   U32Policy,
 		IFLA_NUM_RX_QUEUES:   U32Policy,
-		IFLA_PHYS_PORT_ID:    StringPolicy,
+		IFLA_PHYS_PORT_ID:    BinaryPolicy,
 		IFLA_CARRIER_CHANGES: U32Policy,
 
-		IFLA_QDISC:    StringPolicy,
-		IFLA_STATS:    StringPolicy, // struct rtnl_link_stats
-		IFLA_STATS64:  StringPolicy, // struct rtnl_link_stats64
-		IFLA_WIRELESS: StringPolicy,
-		IFLA_PROTINFO: StringPolicy, // depends on prot
+		IFLA_QDISC:    BinaryPolicy,
+		IFLA_STATS:    BinaryPolicy, // struct rtnl_link_stats
+		IFLA_STATS64:  BinaryPolicy, // struct rtnl_link_stats64
+		IFLA_WIRELESS: BinaryPolicy,
+		IFLA_PROTINFO: BinaryPolicy, // depends on prot
 		IFLA_NUM_VF:   U32Policy,
 		IFLA_GROUP:    U32Policy,
 	},

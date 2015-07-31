@@ -915,10 +915,10 @@ var keyPolicy Policy = MapPolicy{
 	Prefix: "KEY",
 	Names:  NL80211_KEY_itoa,
 	Rule: map[uint16]Policy{
-		NL80211_KEY_DATA:         StringPolicy,
+		NL80211_KEY_DATA:         BinaryPolicy,
 		NL80211_KEY_IDX:          U8Policy,
 		NL80211_KEY_CIPHER:       U32Policy,
-		NL80211_KEY_SEQ:          StringPolicy,
+		NL80211_KEY_SEQ:          BinaryPolicy,
 		NL80211_KEY_DEFAULT:      FlagPolicy,
 		NL80211_KEY_DEFAULT_MGMT: FlagPolicy,
 		NL80211_KEY_TYPE:         U32Policy,
@@ -969,8 +969,8 @@ var wowlanTrigPolicy Policy = MapPolicy{
 				Prefix: "PKTPAT",
 				Names:  NL80211_PKTPAT_itoa,
 				Rule: map[uint16]Policy{
-					NL80211_PKTPAT_MASK:    StringPolicy,
-					NL80211_PKTPAT_PATTERN: StringPolicy,
+					NL80211_PKTPAT_MASK:    BinaryPolicy,
+					NL80211_PKTPAT_PATTERN: BinaryPolicy,
 					NL80211_PKTPAT_OFFSET:  U32Policy,
 				},
 			},
@@ -988,20 +988,20 @@ var wowlanTrigPolicy Policy = MapPolicy{
 			Rule: map[uint16]Policy{
 				NL80211_WOWLAN_TCP_SRC_IPV4:           U32Policy,
 				NL80211_WOWLAN_TCP_DST_IPV4:           U32Policy,
-				NL80211_WOWLAN_TCP_DST_MAC:            StringPolicy,
+				NL80211_WOWLAN_TCP_DST_MAC:            BinaryPolicy,
 				NL80211_WOWLAN_TCP_SRC_PORT:           U16Policy,
 				NL80211_WOWLAN_TCP_DST_PORT:           U16Policy,
-				NL80211_WOWLAN_TCP_DATA_PAYLOAD:       StringPolicy,
-				NL80211_WOWLAN_TCP_DATA_PAYLOAD_SEQ:   StringPolicy,
-				NL80211_WOWLAN_TCP_DATA_PAYLOAD_TOKEN: StringPolicy,
+				NL80211_WOWLAN_TCP_DATA_PAYLOAD:       BinaryPolicy,
+				NL80211_WOWLAN_TCP_DATA_PAYLOAD_SEQ:   BinaryPolicy,
+				NL80211_WOWLAN_TCP_DATA_PAYLOAD_TOKEN: BinaryPolicy,
 				NL80211_WOWLAN_TCP_DATA_INTERVAL:      U32Policy,
-				NL80211_WOWLAN_TCP_WAKE_PAYLOAD:       StringPolicy,
-				NL80211_WOWLAN_TCP_WAKE_MASK:          StringPolicy,
+				NL80211_WOWLAN_TCP_WAKE_PAYLOAD:       BinaryPolicy,
+				NL80211_WOWLAN_TCP_WAKE_MASK:          BinaryPolicy,
 			},
 		},
-		NL80211_WOWLAN_TRIG_WAKEUP_PKT_80211:     StringPolicy,
+		NL80211_WOWLAN_TRIG_WAKEUP_PKT_80211:     BinaryPolicy,
 		NL80211_WOWLAN_TRIG_WAKEUP_PKT_80211_LEN: U32Policy,
-		NL80211_WOWLAN_TRIG_WAKEUP_PKT_8023:      StringPolicy,
+		NL80211_WOWLAN_TRIG_WAKEUP_PKT_8023:      BinaryPolicy,
 		NL80211_WOWLAN_TRIG_WAKEUP_PKT_8023_LEN:  U32Policy,
 	},
 }
@@ -1050,7 +1050,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_SUPPORT_MESH_AUTH:        FlagPolicy,
 		NL80211_ATTR_SUPPORT_AP_UAPSD:         FlagPolicy,
 		NL80211_ATTR_ROAM_SUPPORT:             FlagPolicy,
-		NL80211_ATTR_CIPHER_SUITES:            StringPolicy,
+		NL80211_ATTR_CIPHER_SUITES:            BinaryPolicy,
 		NL80211_ATTR_MAX_NUM_PMKIDS:           U8Policy,
 		NL80211_ATTR_WIPHY_ANTENNA_AVAIL_TX:   U32Policy,
 		NL80211_ATTR_WIPHY_ANTENNA_AVAIL_RX:   U32Policy,
@@ -1061,22 +1061,22 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_IFINDEX: U32Policy,
 		NL80211_ATTR_IFNAME:  NulStringPolicy,
 
-		NL80211_ATTR_MAC:        StringPolicy,
-		NL80211_ATTR_PREV_BSSID: StringPolicy,
+		NL80211_ATTR_MAC:        BinaryPolicy,
+		NL80211_ATTR_PREV_BSSID: BinaryPolicy,
 
 		NL80211_ATTR_KEY:         keyPolicy,
 		NL80211_ATTR_KEYS:        ListPolicy{Nested: keyPolicy},
-		NL80211_ATTR_KEY_DATA:    StringPolicy,
+		NL80211_ATTR_KEY_DATA:    BinaryPolicy,
 		NL80211_ATTR_KEY_IDX:     U8Policy,
 		NL80211_ATTR_KEY_CIPHER:  U32Policy,
 		NL80211_ATTR_KEY_DEFAULT: FlagPolicy,
-		NL80211_ATTR_KEY_SEQ:     StringPolicy,
+		NL80211_ATTR_KEY_SEQ:     BinaryPolicy,
 		NL80211_ATTR_KEY_TYPE:    U32Policy,
 
 		NL80211_ATTR_BEACON_INTERVAL: U32Policy,
 		NL80211_ATTR_DTIM_PERIOD:     U32Policy,
-		NL80211_ATTR_BEACON_HEAD:     StringPolicy,
-		NL80211_ATTR_BEACON_TAIL:     StringPolicy,
+		NL80211_ATTR_BEACON_HEAD:     BinaryPolicy,
+		NL80211_ATTR_BEACON_TAIL:     BinaryPolicy,
 		NL80211_ATTR_STA_AID:         U16Policy,
 		NL80211_ATTR_STA_FLAGS: MapPolicy{
 			Prefix: "STA_FLAG",
@@ -1091,7 +1091,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 			},
 		},
 		NL80211_ATTR_STA_LISTEN_INTERVAL: U16Policy,
-		NL80211_ATTR_STA_SUPPORTED_RATES: StringPolicy,
+		NL80211_ATTR_STA_SUPPORTED_RATES: BinaryPolicy,
 		NL80211_ATTR_STA_PLINK_ACTION:    U8Policy,
 		NL80211_ATTR_STA_VLAN:            U32Policy,
 		NL80211_ATTR_MNTR_FLAGS: MapPolicy{
@@ -1106,7 +1106,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 				NL80211_MNTR_FLAG_ACTIVE:      FlagPolicy,
 			},
 		},
-		NL80211_ATTR_MESH_ID:        StringPolicy,
+		NL80211_ATTR_MESH_ID:        BinaryPolicy,
 		NL80211_ATTR_MPATH_NEXT_HOP: U32Policy,
 
 		NL80211_ATTR_REG_ALPHA2: StringPolicy,
@@ -1129,7 +1129,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_BSS_CTS_PROT:        U8Policy,
 		NL80211_ATTR_BSS_SHORT_PREAMBLE:  U8Policy,
 		NL80211_ATTR_BSS_SHORT_SLOT_TIME: U8Policy,
-		NL80211_ATTR_BSS_BASIC_RATES:     StringPolicy,
+		NL80211_ATTR_BSS_BASIC_RATES:     BinaryPolicy,
 		NL80211_ATTR_BSS_HT_OPMODE:       U16Policy,
 
 		NL80211_ATTR_MESH_CONFIG: MapPolicy{
@@ -1176,25 +1176,25 @@ var Nl80211Policy MapPolicy = MapPolicy{
 				NL80211_MESH_SETUP_USERSPACE_AUTH:         FlagPolicy,
 				NL80211_MESH_SETUP_AUTH_PROTOCOL:          U8Policy,
 				NL80211_MESH_SETUP_USERSPACE_MPM:          FlagPolicy,
-				NL80211_MESH_SETUP_IE:                     StringPolicy,
+				NL80211_MESH_SETUP_IE:                     BinaryPolicy,
 				NL80211_MESH_SETUP_USERSPACE_AMPE:         FlagPolicy,
 			},
 		},
 
-		NL80211_ATTR_HT_CAPABILITY: StringPolicy,
+		NL80211_ATTR_HT_CAPABILITY: BinaryPolicy,
 
 		NL80211_ATTR_MGMT_SUBTYPE:     U8Policy,
-		NL80211_ATTR_IE:               StringPolicy,
+		NL80211_ATTR_IE:               BinaryPolicy,
 		NL80211_ATTR_SCAN_FREQUENCIES: ListPolicy{Nested: U32Policy},
-		NL80211_ATTR_SCAN_SSIDS:       ListPolicy{Nested: StringPolicy},
+		NL80211_ATTR_SCAN_SSIDS:       ListPolicy{Nested: BinaryPolicy},
 
-		NL80211_ATTR_SSID:                    StringPolicy,
+		NL80211_ATTR_SSID:                    BinaryPolicy,
 		NL80211_ATTR_AUTH_TYPE:               U32Policy,
 		NL80211_ATTR_REASON_CODE:             U16Policy,
 		NL80211_ATTR_FREQ_FIXED:              FlagPolicy,
 		NL80211_ATTR_TIMED_OUT:               FlagPolicy,
 		NL80211_ATTR_USE_MFP:                 U32Policy,
-		NL80211_ATTR_STA_FLAGS2:              StringPolicy, // struct nl80211_sta_flag_update
+		NL80211_ATTR_STA_FLAGS2:              BinaryPolicy, // struct nl80211_sta_flag_update
 		NL80211_ATTR_CONTROL_PORT:            FlagPolicy,
 		NL80211_ATTR_CONTROL_PORT_ETHERTYPE:  FlagPolicy, // XXX: nl80211_send_wiphy use FLAG in kernel code, but should be U16 with 0x888E
 		NL80211_ATTR_CONTROL_PORT_NO_ENCRYPT: FlagPolicy,
@@ -1203,7 +1203,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_WPA_VERSIONS:            U32Policy,
 		NL80211_ATTR_PID:                     U32Policy,
 		NL80211_ATTR_4ADDR:                   U8Policy,
-		NL80211_ATTR_PMKID:                   StringPolicy,
+		NL80211_ATTR_PMKID:                   BinaryPolicy,
 		NL80211_ATTR_DURATION:                U32Policy,
 		NL80211_ATTR_COOKIE:                  U64Policy,
 		NL80211_ATTR_TX_RATES: ListPolicy{
@@ -1211,15 +1211,15 @@ var Nl80211Policy MapPolicy = MapPolicy{
 				Prefix: "TXRATE",
 				Names:  NL80211_TXRATE_itoa,
 				Rule: map[uint16]Policy{
-					NL80211_TXRATE_LEGACY: StringPolicy,
-					NL80211_TXRATE_HT:     StringPolicy,
-					NL80211_TXRATE_VHT:    StringPolicy,
-					NL80211_TXRATE_GI:     StringPolicy,
+					NL80211_TXRATE_LEGACY: BinaryPolicy,
+					NL80211_TXRATE_HT:     BinaryPolicy,
+					NL80211_TXRATE_VHT:    BinaryPolicy,
+					NL80211_TXRATE_GI:     BinaryPolicy,
 				},
 			},
 		},
-		NL80211_ATTR_FRAME:       StringPolicy,
-		NL80211_ATTR_FRAME_MATCH: StringPolicy,
+		NL80211_ATTR_FRAME:       BinaryPolicy,
+		NL80211_ATTR_FRAME_MATCH: BinaryPolicy,
 		NL80211_ATTR_PS_STATE:    U32Policy,
 		NL80211_ATTR_CQM: MapPolicy{
 			Prefix: "CQM",
@@ -1258,21 +1258,21 @@ var Nl80211Policy MapPolicy = MapPolicy{
 			Prefix: "REKEY_DATA",
 			Names:  NL80211_REKEY_DATA_itoa,
 			Rule: map[uint16]Policy{
-				NL80211_REKEY_DATA_KEK:        StringPolicy,
-				NL80211_REKEY_DATA_KCK:        StringPolicy,
-				NL80211_REKEY_DATA_REPLAY_CTR: StringPolicy,
+				NL80211_REKEY_DATA_KEK:        BinaryPolicy,
+				NL80211_REKEY_DATA_KCK:        BinaryPolicy,
+				NL80211_REKEY_DATA_REPLAY_CTR: BinaryPolicy,
 			},
 		},
-		NL80211_ATTR_SCAN_SUPP_RATES: ListPolicy{Nested: StringPolicy},
+		NL80211_ATTR_SCAN_SUPP_RATES: ListPolicy{Nested: BinaryPolicy},
 		NL80211_ATTR_HIDDEN_SSID:     U32Policy,
-		NL80211_ATTR_IE_PROBE_RESP:   StringPolicy,
-		NL80211_ATTR_IE_ASSOC_RESP:   StringPolicy,
+		NL80211_ATTR_IE_PROBE_RESP:   BinaryPolicy,
+		NL80211_ATTR_IE_ASSOC_RESP:   BinaryPolicy,
 		NL80211_ATTR_SCHED_SCAN_MATCH: ListPolicy{
 			Nested: MapPolicy{
 				Prefix: "SCHED_SCAN_MATCH",
 				Names:  NL80211_SCHED_SCAN_MATCH_ATTR_itoa,
 				Rule: map[uint16]Policy{
-					NL80211_SCHED_SCAN_MATCH_ATTR_SSID: StringPolicy,
+					NL80211_SCHED_SCAN_MATCH_ATTR_SSID: BinaryPolicy,
 					NL80211_SCHED_SCAN_MATCH_ATTR_RSSI: U32Policy,
 				},
 			},
@@ -1285,55 +1285,55 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_TDLS_EXTERNAL_SETUP: FlagPolicy,
 		NL80211_ATTR_TDLS_INITIATOR:      FlagPolicy,
 		NL80211_ATTR_DONT_WAIT_FOR_ACK:   FlagPolicy,
-		NL80211_ATTR_PROBE_RESP:          StringPolicy,
+		NL80211_ATTR_PROBE_RESP:          BinaryPolicy,
 		NL80211_ATTR_DFS_REGION:          U8Policy,
 		NL80211_ATTR_DISABLE_HT:          FlagPolicy,
-		NL80211_ATTR_HT_CAPABILITY_MASK:  StringPolicy, // struct ieee80211_ht_cap
+		NL80211_ATTR_HT_CAPABILITY_MASK:  BinaryPolicy, // struct ieee80211_ht_cap
 		NL80211_ATTR_NOACK_MAP:           U16Policy,
 		NL80211_ATTR_INACTIVITY_TIMEOUT:  U16Policy,
 		NL80211_ATTR_BG_SCAN_PERIOD:      U16Policy,
 		NL80211_ATTR_WDEV:                U64Policy,
 		NL80211_ATTR_USER_REG_HINT_TYPE:  U32Policy,
-		NL80211_ATTR_SAE_DATA:            StringPolicy,
-		NL80211_ATTR_VHT_CAPABILITY:      StringPolicy,
+		NL80211_ATTR_SAE_DATA:            BinaryPolicy,
+		NL80211_ATTR_VHT_CAPABILITY:      BinaryPolicy,
 		NL80211_ATTR_SCAN_FLAGS:          U32Policy,
 		NL80211_ATTR_P2P_CTWINDOW:        U8Policy,
 		NL80211_ATTR_P2P_OPPPS:           U8Policy,
 		NL80211_ATTR_ACL_POLICY:          U32Policy,
-		NL80211_ATTR_MAC_ADDRS:           ListPolicy{Nested: StringPolicy},
+		NL80211_ATTR_MAC_ADDRS:           ListPolicy{Nested: BinaryPolicy},
 		NL80211_ATTR_STA_CAPABILITY:      U16Policy,
-		NL80211_ATTR_STA_EXT_CAPABILITY:  StringPolicy,
+		NL80211_ATTR_STA_EXT_CAPABILITY:  BinaryPolicy,
 		NL80211_ATTR_SPLIT_WIPHY_DUMP:    FlagPolicy,
 		NL80211_ATTR_DISABLE_VHT:         FlagPolicy,
-		NL80211_ATTR_VHT_CAPABILITY_MASK: StringPolicy, // struct ieee80211_vht_cap
+		NL80211_ATTR_VHT_CAPABILITY_MASK: BinaryPolicy, // struct ieee80211_vht_cap
 		NL80211_ATTR_MDID:                U16Policy,
-		NL80211_ATTR_IE_RIC:              StringPolicy,
+		NL80211_ATTR_IE_RIC:              BinaryPolicy,
 		NL80211_ATTR_PEER_AID:            U16Policy,
 		NL80211_ATTR_CH_SWITCH_COUNT:     U32Policy,
 		NL80211_ATTR_CH_SWITCH_BLOCK_TX:  FlagPolicy,
 		// NL80211_ATTR_CSA_IES refers Nl80211Policy, which will cause "initialization loop" in golang: see init()
 		NL80211_ATTR_CSA_C_OFF_BEACON:           U16Policy,
 		NL80211_ATTR_CSA_C_OFF_PRESP:            U16Policy,
-		NL80211_ATTR_STA_SUPPORTED_CHANNELS:     StringPolicy,
-		NL80211_ATTR_STA_SUPPORTED_OPER_CLASSES: StringPolicy,
+		NL80211_ATTR_STA_SUPPORTED_CHANNELS:     BinaryPolicy,
+		NL80211_ATTR_STA_SUPPORTED_OPER_CLASSES: BinaryPolicy,
 		NL80211_ATTR_HANDLE_DFS:                 FlagPolicy,
 		NL80211_ATTR_OPMODE_NOTIF:               U8Policy,
 		NL80211_ATTR_VENDOR_ID:                  U32Policy,
 		NL80211_ATTR_VENDOR_SUBCMD:              U32Policy,
-		NL80211_ATTR_VENDOR_DATA:                StringPolicy,
-		NL80211_ATTR_QOS_MAP:                    StringPolicy,
-		NL80211_ATTR_MAC_HINT:                   StringPolicy,
+		NL80211_ATTR_VENDOR_DATA:                BinaryPolicy,
+		NL80211_ATTR_QOS_MAP:                    BinaryPolicy,
+		NL80211_ATTR_MAC_HINT:                   BinaryPolicy,
 		NL80211_ATTR_WIPHY_FREQ_HINT:            U32Policy,
 		NL80211_ATTR_TDLS_PEER_CAPABILITY:       U32Policy,
 		NL80211_ATTR_IFACE_SOCKET_OWNER:         FlagPolicy,
-		NL80211_ATTR_CSA_C_OFFSETS_TX:           StringPolicy,
+		NL80211_ATTR_CSA_C_OFFSETS_TX:           BinaryPolicy,
 		NL80211_ATTR_USE_RRM:                    FlagPolicy,
 		NL80211_ATTR_TSID:                       U8Policy,
 		NL80211_ATTR_USER_PRIO:                  U8Policy,
 		NL80211_ATTR_ADMITTED_TIME:              U16Policy,
 		NL80211_ATTR_SMPS_MODE:                  U8Policy,
 
-		NL80211_ATTR_COALESCE_RULE: ListPolicy{ // XXX: nl80211_send_coalesce uses StringPolicy: nl80211_coalesce_rule_support
+		NL80211_ATTR_COALESCE_RULE: ListPolicy{ // XXX: nl80211_send_coalesce uses BinaryPolicy: nl80211_coalesce_rule_support
 			Nested: MapPolicy{
 				Prefix: "COALESCE_RULE",
 				Names:  NL80211_ATTR_COALESCE_RULE_itoa,
@@ -1345,8 +1345,8 @@ var Nl80211Policy MapPolicy = MapPolicy{
 							Prefix: "PKTPAT",
 							Names:  NL80211_PKTPAT_itoa,
 							Rule: map[uint16]Policy{
-								NL80211_PKTPAT_MASK:    StringPolicy,
-								NL80211_PKTPAT_PATTERN: StringPolicy,
+								NL80211_PKTPAT_MASK:    BinaryPolicy,
+								NL80211_PKTPAT_PATTERN: BinaryPolicy,
 								NL80211_PKTPAT_OFFSET:  U32Policy,
 							},
 						},
@@ -1424,7 +1424,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 						NL80211_STA_BSS_PARAM_BEACON_INTERVAL: U16Policy,
 					},
 				},
-				NL80211_STA_INFO_STA_FLAGS: StringPolicy, // struct nl80211_sta_flag_update
+				NL80211_STA_INFO_STA_FLAGS: BinaryPolicy, // struct nl80211_sta_flag_update
 				NL80211_STA_INFO_T_OFFSET:  U64Policy,
 			},
 		},
@@ -1434,11 +1434,11 @@ var Nl80211Policy MapPolicy = MapPolicy{
 				Prefix: "BAND",
 				Names:  NL80211_BAND_ATTR_itoa,
 				Rule: map[uint16]Policy{
-					NL80211_BAND_ATTR_HT_MCS_SET:       StringPolicy, // struct ieee80211_mcs_info
+					NL80211_BAND_ATTR_HT_MCS_SET:       BinaryPolicy, // struct ieee80211_mcs_info
 					NL80211_BAND_ATTR_HT_CAPA:          U16Policy,
 					NL80211_BAND_ATTR_HT_AMPDU_FACTOR:  U8Policy,
 					NL80211_BAND_ATTR_HT_AMPDU_DENSITY: U8Policy,
-					NL80211_BAND_ATTR_VHT_MCS_SET:      StringPolicy, // struct ieee80211_vht_mcs_info
+					NL80211_BAND_ATTR_VHT_MCS_SET:      BinaryPolicy, // struct ieee80211_vht_mcs_info
 					NL80211_BAND_ATTR_VHT_CAPA:         U32Policy,
 					NL80211_BAND_ATTR_RATES: ListPolicy{
 						Nested: MapPolicy{
@@ -1503,8 +1503,8 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_DEVICE_AP_SME: U32Policy,
 		NL80211_ATTR_FEATURE_FLAGS: U32Policy,
 		NL80211_ATTR_MAC_ACL_MAX:   U32Policy,
-		NL80211_ATTR_EXT_CAPA:      StringPolicy, // []uint8 extended_capabilities
-		NL80211_ATTR_EXT_CAPA_MASK: StringPolicy, // []uint8 extended_capabilities_mask
+		NL80211_ATTR_EXT_CAPA:      BinaryPolicy, // []uint8 extended_capabilities
+		NL80211_ATTR_EXT_CAPA_MASK: BinaryPolicy, // []uint8 extended_capabilities_mask
 		NL80211_ATTR_MPATH_INFO: MapPolicy{
 			Prefix: "MPATH_INFO",
 			Names:  NL80211_MPATH_INFO_itoa,
@@ -1524,12 +1524,12 @@ var Nl80211Policy MapPolicy = MapPolicy{
 			Prefix: "BSS",
 			Names:  NL80211_BSS_itoa,
 			Rule: map[uint16]Policy{
-				NL80211_BSS_BSSID:                StringPolicy,
+				NL80211_BSS_BSSID:                BinaryPolicy,
 				NL80211_BSS_PRESP_DATA:           FlagPolicy,
 				NL80211_BSS_TSF:                  U64Policy,
-				NL80211_BSS_INFORMATION_ELEMENTS: StringPolicy,
+				NL80211_BSS_INFORMATION_ELEMENTS: BinaryPolicy,
 				NL80211_BSS_BEACON_TSF:           U64Policy,
-				NL80211_BSS_BEACON_IES:           StringPolicy,
+				NL80211_BSS_BEACON_IES:           BinaryPolicy,
 				NL80211_BSS_BEACON_INTERVAL:      U16Policy,
 				NL80211_BSS_CAPABILITY:           U16Policy,
 				NL80211_BSS_FREQUENCY:            U32Policy,
@@ -1544,13 +1544,13 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_REG_TYPE:               U8Policy,
 		NL80211_ATTR_FREQ_BEFORE:            channelPolicy,
 		NL80211_ATTR_FREQ_AFTER:             channelPolicy,
-		NL80211_ATTR_TESTDATA:               StringPolicy,
+		NL80211_ATTR_TESTDATA:               BinaryPolicy,
 		NL80211_ATTR_DISCONNECTED_BY_AP:     FlagPolicy,
 		NL80211_ATTR_STATUS_CODE:            U16Policy,
-		NL80211_ATTR_CIPHER_SUITES_PAIRWISE: StringPolicy,
-		NL80211_ATTR_AKM_SUITES:             StringPolicy, // [NL80211_MAX_NR_AKM_SUITES]uint32
-		NL80211_ATTR_REQ_IE:                 StringPolicy,
-		NL80211_ATTR_RESP_IE:                StringPolicy,
+		NL80211_ATTR_CIPHER_SUITES_PAIRWISE: BinaryPolicy,
+		NL80211_ATTR_AKM_SUITES:             BinaryPolicy, // [NL80211_MAX_NR_AKM_SUITES]uint32
+		NL80211_ATTR_REQ_IE:                 BinaryPolicy,
+		NL80211_ATTR_RESP_IE:                BinaryPolicy,
 		NL80211_ATTR_SURVEY_INFO: MapPolicy{
 			Prefix: "SURVEY_INFO",
 			Names:  NL80211_SURVEY_INFO_itoa,
@@ -1579,7 +1579,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 			Names:  NL80211_PMKSA_CANDIDATE_itoa,
 			Rule: map[uint16]Policy{
 				NL80211_PMKSA_CANDIDATE_INDEX:   U32Policy,
-				NL80211_PMKSA_CANDIDATE_BSSID:   StringPolicy,
+				NL80211_PMKSA_CANDIDATE_BSSID:   BinaryPolicy,
 				NL80211_PMKSA_CANDIDATE_PREAUTH: FlagPolicy,
 			},
 		},
@@ -1591,7 +1591,7 @@ var Nl80211Policy MapPolicy = MapPolicy{
 		NL80211_ATTR_MAX_CRIT_PROT_DURATION: U16Policy,
 		NL80211_ATTR_SUPPORT_5_MHZ:          FlagPolicy,
 		NL80211_ATTR_SUPPORT_10_MHZ:         FlagPolicy,
-		NL80211_ATTR_VENDOR_EVENTS:          ListPolicy{Nested: StringPolicy},
+		NL80211_ATTR_VENDOR_EVENTS:          ListPolicy{Nested: BinaryPolicy},
 		NL80211_ATTR_MAX_AP_ASSOC_STA:       U32Policy,
 		NL80211_ATTR_MAX_CSA_COUNTERS:       U8Policy,
 	},

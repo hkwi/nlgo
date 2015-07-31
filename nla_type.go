@@ -12,13 +12,13 @@ import (
    NLA_U16           U16
    NLA_U32           U32
    NLA_U64           U64
-   NLA_STRING        String
+   NLA_STRING        NulString
    NLA_FLAG          Flag
    NLA_MSECS         U64
    NLA_NESTED        AttrList or Attr
    NLA_NESTED_COMPAT AttrList or Attr
    NLA_NUL_STRING    NulString
-   NLA_BINARY        // directly access Attr.Value
+   NLA_BINARY        Binary
    NLA_S8            S8
    NLA_S16           S16
    NLA_S32           S32
@@ -128,15 +128,27 @@ func setU64(attr *Attr) error {
 	return nil
 }
 
-type String string
+type Binary []byte
 
-func (self String) Build(hdr syscall.NlAttr) []byte {
+func (self Binary) Build(hdr syscall.NlAttr) []byte {
 	length := NLA_HDRLEN + len(self)
 	hdr.Len = uint16(length)
 	ret := make([]byte, NLA_ALIGN(length))
 	copy(ret, (*[syscall.SizeofNlAttr]byte)(unsafe.Pointer(&hdr))[:])
 	copy(ret[NLA_HDRLEN:], []byte(self))
 	return ret
+}
+
+func setBinary(attr *Attr) error {
+	nla := attr.Bytes()
+	attr.Value = Binary(nla[NLA_HDRLEN:attr.Header.Len])
+	return nil
+}
+
+type String string
+
+func (self String) Build(hdr syscall.NlAttr) []byte {
+	return Binary(self).Build(hdr)
 }
 
 func setString(attr *Attr) error {
