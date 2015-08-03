@@ -34,7 +34,7 @@ func main() {
 					log.Print(attr)
 				} else if value := amap.Get(nlgo.CTRL_ATTR_FAMILY_NAME).(nlgo.NulString); string(value) == "nl80211" {
 					log.Printf("%v", attr)
-					for _, g := range []nlgo.Attr(amap.Get(nlgo.CTRL_ATTR_MCAST_GROUPS).(nlgo.AttrList)) {
+					for _, g := range amap.Get(nlgo.CTRL_ATTR_MCAST_GROUPS).(nlgo.AttrSlice).Slice() {
 						group := g.Value.(nlgo.AttrMap)
 						pid := group.Get(nlgo.CTRL_ATTR_MCAST_GRP_ID).(nlgo.U32)
 						if err := nlgo.NlSocketAddMembership(nl80211, int(pid)); err != nil {

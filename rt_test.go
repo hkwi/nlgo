@@ -105,7 +105,7 @@ func TestRoute(t *testing.T) {
 			(*[syscall.SizeofRtMsg]byte)(unsafe.Pointer(&syscall.RtMsg{
 				Family: syscall.AF_INET6,
 			}))[:],
-			AttrList{
+			AttrSlice{
 				Attr{
 					Header: syscall.NlAttr{
 						Type: syscall.RTA_DST,

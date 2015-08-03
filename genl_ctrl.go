@@ -33,8 +33,8 @@ func GenlCtrlGrpByName(sk *NlSock, family, group string) (uint32, error) {
 		return 0, err
 	} else {
 		if grps := attrs.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
-			for _, grpc := range []Attr(grps.(AttrList)) {
-				grp := grpc.Value.(AttrList)
+			for _, grpc := range grps.(AttrSlice).Slice() {
+				grp := grpc.Value.(AttrMap)
 				if string(grp.Get(CTRL_ATTR_MCAST_GRP_NAME).(String)) == group {
 					return uint32(grp.Get(CTRL_ATTR_MCAST_GRP_ID).(U32)), nil
 				}

@@ -256,8 +256,8 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 			return family.Name
 		}()
 		if grps := amap.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
-			for _, grp := range []Attr(grps.(AttrList)) {
-				gattr := grp.Value.(AttrList)
+			for _, grp := range grps.(AttrSlice).Slice() {
+				gattr := grp.Value.(AttrMap)
 				key := uint32(gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(U32))
 				groups[key] = GenlGroup{
 					Id:     key,

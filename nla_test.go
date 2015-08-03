@@ -27,7 +27,7 @@ func TestSimple(t *testing.T) {
 
 	attrs := AttrMap{
 		Policy: policy,
-		Items: []Attr{
+		AttrSlice: AttrSlice{
 			Attr{
 				Header: syscall.NlAttr{
 					Type: 1,
@@ -60,12 +60,12 @@ func TestSimple(t *testing.T) {
 			},
 		},
 	}
-	buf := AttrList(attrs.Items).Bytes()
+	buf := attrs.Bytes()
 	if attr, err := policy.Parse(buf); err != nil {
 		t.Error(err)
 	} else if amap, ok := attr.(AttrMap); !ok {
 		t.Error("policy does not return AttrMap")
-	} else if !bytes.Equal(buf, AttrList(amap.Items).Bytes()) {
+	} else if !bytes.Equal(buf, amap.Bytes()) {
 		t.Error("cycle error")
 	}
 }

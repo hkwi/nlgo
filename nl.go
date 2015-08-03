@@ -57,18 +57,18 @@ func (self Attr) Build(hdr syscall.NlAttr) []byte {
 	return Binary(self.Bytes()).Build(hdr)
 }
 
-type AttrList []Attr
-
-func (self AttrList) Get(field uint16) NlaValue {
-	for _, attr := range []Attr(self) {
-		if attr.Field() == field {
-			return attr.Value
-		}
-	}
-	return nil
+func (self Attr) Array() []Attr {
+	return []Attr{self}
 }
 
-func (self AttrList) Bytes() []byte {
+type AttrList interface {
+	Slice() []Attr
+	Bytes() []byte
+}
+
+type AttrSlice []Attr
+
+func (self AttrSlice) Bytes() []byte {
 	var ret []byte
 	for _, attr := range []Attr(self) {
 		ret = append(ret, attr.Value.Build(attr.Header)...)
@@ -76,16 +76,20 @@ func (self AttrList) Bytes() []byte {
 	return ret
 }
 
-func (self AttrList) Build(hdr syscall.NlAttr) []byte {
+func (self AttrSlice) Build(hdr syscall.NlAttr) []byte {
 	return Binary(self.Bytes()).Build(hdr)
 }
 
-func (self AttrList) String() string {
+func (self AttrSlice) String() string {
 	var comps []string
 	for _, attr := range []Attr(self) {
 		comps = append(comps, fmt.Sprintf("%d: %v", attr.Field(), attr.Value))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(comps, ", "))
+}
+
+func (self AttrSlice) Slice() []Attr {
+	return []Attr(self)
 }
 
 type Policy interface {
@@ -202,25 +206,26 @@ func (self ListPolicy) Parse(nla []byte) (NlaValue, error) {
 		attrs = append(attrs, attr)
 		nla = nla[NLA_ALIGN(int(attr.Header.Len)):]
 	}
-	return AttrList(attrs), nil
+	return AttrSlice(attrs), nil
 }
 
 type AttrMap struct {
+	AttrSlice
 	Policy MapPolicy
-	Items  []Attr
 }
 
-func (self AttrMap) Build(hdr syscall.NlAttr) []byte {
-	var ret []byte
-	for _, attr := range self.Items {
-		ret = append(ret, attr.Bytes()...)
+func (self AttrMap) Get(field uint16) NlaValue {
+	for _, attr := range self.Slice() {
+		if attr.Field() == field {
+			return attr.Value
+		}
 	}
-	return ret
+	return nil
 }
 
 func (self AttrMap) String() string {
 	var comps []string
-	for _, attr := range self.Items {
+	for _, attr := range self.AttrSlice {
 		field := attr.Field()
 		name := "?"
 		if n, ok := self.Policy.Names[field]; ok {
@@ -229,10 +234,6 @@ func (self AttrMap) String() string {
 		comps = append(comps, fmt.Sprintf("%s: %v", name, attr.Value))
 	}
 	return fmt.Sprintf("%s(%s)", self.Policy.Prefix, strings.Join(comps, ", "))
-}
-
-func (self AttrMap) Get(field uint16) NlaValue {
-	return AttrList(self.Items).Get(field)
 }
 
 type MapPolicy struct {
@@ -257,8 +258,8 @@ func (self MapPolicy) Parse(nla []byte) (NlaValue, error) {
 		nla = nla[NLA_ALIGN(int(attr.Header.Len)):]
 	}
 	return AttrMap{
-		Policy: self,
-		Items:  attrs,
+		AttrSlice: attrs,
+		Policy:    self,
 	}, nil
 }
 
