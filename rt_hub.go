@@ -129,7 +129,9 @@ func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrLis
 		return nil, fmt.Errorf("unsupported")
 	}
 	copy(msg, payload)
-	msg = append(msg, attr.Bytes()...)
+	if attr != nil {
+		msg = append(msg, attr.Bytes()...)
+	}
 
 	self.lock.Lock()
 	self.unicast[self.sock.SeqNext] = res
