@@ -262,7 +262,7 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 				groups[key] = GenlGroup{
 					Id:     key,
 					Family: familyName,
-					Name:   string(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(String)),
+					Name:   string(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(NulString)),
 				}
 			}
 		}
@@ -317,7 +317,9 @@ func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint1
 		Version: version,
 	}
 	copy(msg[GENL_HDRLEN:], payload)
-	msg = append(msg, attr.Bytes()...)
+	if attr != nil {
+		msg = append(msg, attr.Bytes()...)
+	}
 
 	if err := func() error {
 		self.lock.Lock()

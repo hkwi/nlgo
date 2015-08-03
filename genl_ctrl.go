@@ -107,7 +107,7 @@ func (self *GenlFamily) FromAttrs(attrs AttrMap) {
 		self.Id = uint16(t.(U16))
 	}
 	if t := attrs.Get(CTRL_ATTR_FAMILY_NAME); t != nil {
-		self.Name = string(t.(String))
+		self.Name = string(t.(NulString))
 	}
 	if t := attrs.Get(CTRL_ATTR_VERSION); t != nil {
 		self.Version = uint32(t.(U32))
