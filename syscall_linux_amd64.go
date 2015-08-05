@@ -3,6 +3,17 @@
 
 package nlgo
 
+const (
+	NLA_HDRLEN  = 0x4
+	GENL_HDRLEN = 0x4
+)
+
+type GenlMsghdr struct {
+	Cmd      uint8
+	Version  uint8
+	Reserved uint16
+}
+
 type Ndmsg struct {
 	Family  uint8
 	Pad1    uint8
@@ -24,6 +35,7 @@ type Tcmsg struct {
 }
 
 const (
-	SizeofNdmsg = 0xc
-	SizeofTcmsg = 0x14
+	SizeofGenlMsghdr = 0x4
+	SizeofNdmsg      = 0xc
+	SizeofTcmsg      = 0x14
 )
