@@ -7,16 +7,6 @@ import (
 	"unsafe"
 )
 
-type GenlMsghdr struct {
-	Cmd     uint8
-	Version uint8
-	_       uint16
-}
-
-const SizeofGenlMsghdr = 0x04
-
-var GENL_HDRLEN int = NLMSG_ALIGN(SizeofGenlMsghdr)
-
 const (
 	GENL_ADMIN_PERM = 1 << iota
 	GENL_CMD_CAP_DO

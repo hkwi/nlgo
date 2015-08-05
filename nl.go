@@ -28,8 +28,6 @@ func NLA_ALIGN(size int) int {
 	return align(size, syscall.NLA_ALIGNTO)
 }
 
-var NLA_HDRLEN int = NLA_ALIGN(syscall.SizeofNlAttr)
-
 const NLA_TYPE_MASK = ^uint16(syscall.NLA_F_NESTED | syscall.NLA_F_NET_BYTEORDER)
 
 type NlaValue interface {
