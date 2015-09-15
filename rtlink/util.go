@@ -1,3 +1,5 @@
+// rtlink provides RTM_*LINK util
+
 package rtlink
 
 import (
