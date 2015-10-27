@@ -111,7 +111,7 @@ func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrLis
 
 	var msg []byte
 	switch cmd {
-	case syscall.RTM_NEWLINK, syscall.RTM_DELLINK, syscall.RTM_GETLINK:
+	case syscall.RTM_NEWLINK, syscall.RTM_DELLINK, syscall.RTM_GETLINK, syscall.RTM_SETLINK:
 		msg = make([]byte, NLMSG_ALIGN(syscall.SizeofIfInfomsg))
 	case syscall.RTM_NEWADDR, syscall.RTM_DELADDR, syscall.RTM_GETADDR:
 		msg = make([]byte, NLMSG_ALIGN(syscall.SizeofIfAddrmsg))
