@@ -10,7 +10,7 @@ package nlgo
 import "C"
 
 const (
-	NLA_HDRLEN = C.NLA_HDRLEN
+	NLA_HDRLEN  = C.NLA_HDRLEN
 	GENL_HDRLEN = C.GENL_HDRLEN
 )
 
@@ -22,6 +22,6 @@ type Tcmsg C.struct_tcmsg
 
 const (
 	SizeofGenlMsghdr = C.sizeof_struct_genlmsghdr
-	SizeofNdmsg = C.sizeof_struct_ndmsg
-	SizeofTcmsg = C.sizeof_struct_tcmsg
+	SizeofNdmsg      = C.sizeof_struct_ndmsg
+	SizeofTcmsg      = C.sizeof_struct_tcmsg
 )
