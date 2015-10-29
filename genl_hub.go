@@ -322,10 +322,14 @@ func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint1
 	}
 
 	if err := func() error {
+		// lock for self.unicast and NlSendSimple(seq)
 		self.lock.Lock()
 		defer self.lock.Unlock()
-		self.unicast[self.sock.SeqNext] = res
+
+		seq := self.sock.SeqNext
+		self.unicast[seq] = res
 		if err := NlSendSimple(self.sock, familyInfo.Id, flags, msg); err != nil {
+			delete(self.unicast, seq)
 			return err
 		}
 		return nil

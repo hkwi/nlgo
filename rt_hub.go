@@ -133,11 +133,19 @@ func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrLis
 		msg = append(msg, attr.Bytes()...)
 	}
 
-	self.lock.Lock()
-	self.unicast[self.sock.SeqNext] = res
-	self.lock.Unlock()
+	if err := func() error {
+		// lock for self.unicast and NlSendSimple(seq)
+		self.lock.Lock()
+		defer self.lock.Unlock()
 
-	if err := NlSendSimple(self.sock, cmd, flags, msg); err != nil {
+		seq := self.sock.SeqNext
+		self.unicast[seq] = res
+		if err := NlSendSimple(self.sock, cmd, flags, msg); err != nil {
+			delete(self.unicast, seq)
+			return err
+		}
+		return nil
+	}(); err != nil {
 		return nil, err
 	}
 
