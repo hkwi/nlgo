@@ -43,6 +43,7 @@ type Message struct {
 	Attrs nlgo.NlaValue
 }
 
+// Recv returns RTM_NEWLINK, RTM_DELLINK sequence in system call including initial dump.
 func (self *Listener) Recv() ([]Message, error) {
 	buf := make([]byte, syscall.Getpagesize())
 	for {
