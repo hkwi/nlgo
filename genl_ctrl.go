@@ -84,7 +84,7 @@ func GenlCtrlProbeByName(sk *NlSock, name string) (AttrMap, error) {
 					case syscall.NLMSG_DONE:
 						return nil
 					case syscall.NLMSG_ERROR:
-						return fmt.Errorf("NlMsgerr=%s", (*syscall.NlMsgerr)(unsafe.Pointer(&msg.Data[0])))
+						return fmt.Errorf("NlMsgerr=%s", NlMsgerr(msg))
 					default:
 						return fmt.Errorf("unexpected NlMsghdr=%s", msg.Header)
 					}
@@ -98,27 +98,56 @@ func GenlCtrlProbeByName(sk *NlSock, name string) (AttrMap, error) {
 type GenlFamily struct {
 	Id      uint16
 	Name    string
-	Version uint32
+	Version uint8
 	Hdrsize uint32
-}
-
-func (self *GenlFamily) FromAttrs(attrs AttrMap) {
-	if t := attrs.Get(CTRL_ATTR_FAMILY_ID); t != nil {
-		self.Id = uint16(t.(U16))
-	}
-	if t := attrs.Get(CTRL_ATTR_FAMILY_NAME); t != nil {
-		self.Name = string(t.(NulString))
-	}
-	if t := attrs.Get(CTRL_ATTR_VERSION); t != nil {
-		self.Version = uint32(t.(U32))
-	}
-	if t := attrs.Get(CTRL_ATTR_HDRSIZE); t != nil {
-		self.Hdrsize = uint32(t.(U32))
-	}
 }
 
 type GenlGroup struct {
 	Id     uint32
 	Family string
 	Name   string
+}
+
+var GenlFamilyCtrl = GenlFamily{
+	Id:      GENL_ID_CTRL,
+	Name:    "nlctrl",
+	Version: 1,
+}
+
+func (self GenlFamily) DumpRequest(cmd uint8) GenlMessage {
+	return GenlMessage{
+		NetlinkMessage: syscall.NetlinkMessage{
+			Header: syscall.NlMsghdr{
+				Type:  self.Id,
+				Flags: syscall.NLM_F_DUMP | syscall.NLM_F_ACK,
+			},
+			Data: (*[SizeofGenlMsghdr]byte)(unsafe.Pointer(&GenlMsghdr{
+				Cmd:     cmd,
+				Version: self.Version,
+			}))[:],
+		},
+		Family: self,
+	}
+}
+
+func (self GenlFamily) Request(cmd uint8, flags uint16, header, body []byte) GenlMessage {
+	length := GENL_HDRLEN + NLMSG_ALIGN(int(self.Hdrsize)) + len(body)
+	data := make([]byte, length)
+	copy(data, (*[GENL_HDRLEN]byte)(unsafe.Pointer(&GenlMsghdr{
+		Cmd:     cmd,
+		Version: self.Version,
+	}))[:])
+	copy(data[GENL_HDRLEN:], header)
+	copy(data[GENL_HDRLEN+NLMSG_ALIGN(int(self.Hdrsize)):], body)
+	return GenlMessage{
+		NetlinkMessage: syscall.NetlinkMessage{
+			Header: syscall.NlMsghdr{
+				Len:   uint32(syscall.NLMSG_HDRLEN + length),
+				Type:  self.Id,
+				Flags: flags,
+			},
+			Data: data,
+		},
+		Family: self,
+	}
 }

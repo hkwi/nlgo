@@ -11,11 +11,20 @@ import (
 )
 
 type GenlMessage struct {
-	Header  syscall.NlMsghdr
-	Genl    *GenlMsghdr
-	Family  string
-	Payload []byte // fixe header + attributes
-	Error   error
+	syscall.NetlinkMessage
+	Family GenlFamily
+}
+
+func (self GenlMessage) Genl() GenlMsghdr {
+	return *(*GenlMsghdr)(unsafe.Pointer(&self.Data[0]))
+}
+
+func (self GenlMessage) FamilyHeader() []byte {
+	return self.Data[GENL_HDRLEN : GENL_HDRLEN+NLMSG_ALIGN(int(self.Family.Hdrsize))]
+}
+
+func (self GenlMessage) Body() []byte {
+	return self.Data[GENL_HDRLEN+NLMSG_ALIGN(int(self.Family.Hdrsize)):]
 }
 
 type GenlListener interface {
@@ -34,37 +43,13 @@ type GenlHub struct {
 	familyIds  map[uint16]GenlFamily
 	groupIds   map[uint32]GenlGroup
 	membership []uint32
-	unicast    map[uint32]chan GenlMessage
+	unilock    *sync.Mutex
+	uniseq     uint32
+	unicast    GenlListener
 	multicast  map[groupKey][]GenlListener
 }
 
-func (self *GenlHub) join(group uint32) error {
-	for _, member := range self.membership {
-		if member == group {
-			return nil
-		}
-	}
-	self.membership = append(self.membership, group)
-	return NlSocketAddMembership(self.sock, int(group))
-}
-
-func (self *GenlHub) leave(group uint32) error {
-	var active []uint32
-	hit := false
-	for _, member := range self.membership {
-		if member == group {
-			hit = true
-		} else {
-			active = append(active, member)
-		}
-	}
-	self.membership = active
-	if hit {
-		return NlSocketDropMembership(self.sock, int(group))
-	}
-	return nil
-}
-
+// sync group registeration
 func (self *GenlHub) sync() error {
 	var active []uint32
 	for gkey, _ := range self.multicast {
@@ -75,6 +60,7 @@ func (self *GenlHub) sync() error {
 		}
 	}
 	for _, old := range self.membership {
+		// should not happen because CTRL_CMD_DELMCAST_GRP event have already cleaned up.
 		drop := true
 		for _, new := range active {
 			if new == old {
@@ -82,7 +68,7 @@ func (self *GenlHub) sync() error {
 			}
 		}
 		if drop {
-			if err := self.leave(old); err != nil {
+			if err := NlSocketDropMembership(self.sock, int(old)); err != nil {
 				return err
 			}
 		}
@@ -95,11 +81,12 @@ func (self *GenlHub) sync() error {
 			}
 		}
 		if join {
-			if err := self.join(new); err != nil {
+			if err := NlSocketAddMembership(self.sock, int(new)); err != nil {
 				return err
 			}
 		}
 	}
+	self.membership = active
 	return nil
 }
 
@@ -108,11 +95,7 @@ func NewGenlHub() (*GenlHub, error) {
 		sock: NlSocketAlloc(),
 		lock: &sync.Mutex{},
 		familyIds: map[uint16]GenlFamily{
-			GENL_ID_CTRL: GenlFamily{
-				Id:      GENL_ID_CTRL,
-				Name:    "nlctrl",
-				Version: 1,
-			},
+			GENL_ID_CTRL: GenlFamilyCtrl,
 		},
 		groupIds: map[uint32]GenlGroup{
 			GENL_ID_CTRL: GenlGroup{
@@ -121,112 +104,64 @@ func NewGenlHub() (*GenlHub, error) {
 				Name:   "notify",
 			},
 		},
-		unicast:   make(map[uint32]chan GenlMessage),
+		unilock:   &sync.Mutex{},
 		multicast: make(map[groupKey][]GenlListener),
 	}
 	if err := NlConnect(self.sock, syscall.NETLINK_GENERIC); err != nil {
-		NlSocketFree(self.sock)
+		self.Close()
+		return nil, err
+	}
+	if err := self.Add("nlctrl", "notify", self); err != nil {
+		self.Close()
+		return nil, err
+	}
+	if err := self.Async(GenlFamilyCtrl.DumpRequest(CTRL_CMD_GETFAMILY), self); err != nil {
+		self.Close()
 		return nil, err
 	}
 	go func() {
-		feed := func(msg GenlMessage) {
-			seq := msg.Header.Seq
-			if seq == 0 { // multicast
-				var listeners []GenlListener
-				self.lock.Lock()
-				if family, ok := self.familyIds[msg.Header.Type]; ok {
-					for gkey, ls := range self.multicast {
-						if gkey.Family == family.Name {
-							for _, listener := range ls {
-								if ok := func() bool { // remove duplicate
-									for _, li := range listeners {
-										if li == listener {
-											return false
-										}
-									}
-									return true
-								}(); ok {
-									listeners = append(listeners, listener)
-								}
-							}
-						}
-					}
-				} else {
-					log.Print("got unknown family message")
-				}
-				self.lock.Unlock()
-
-				for _, listener := range listeners {
-					listener.GenlListen(msg)
-				}
-			} else {
-				self.lock.Lock()
-				listener := self.unicast[seq]
-				self.lock.Unlock()
-
-				if listener != nil {
-					listener <- msg
-					mtype := msg.Header.Type
-					if mtype == syscall.NLMSG_DONE || mtype == syscall.NLMSG_ERROR { // NlSock.Flags NL_NO_AUTO_ACK is 0 by default
-						self.lock.Lock()
-						delete(self.unicast, seq)
-						self.lock.Unlock()
-
-						close(listener)
-					}
-				}
-			}
-		}
 		for {
 			buf := make([]byte, syscall.Getpagesize())
 			if bufN, _, err := syscall.Recvfrom(self.sock.Fd, buf, syscall.MSG_TRUNC); err != nil {
 				if e, ok := err.(syscall.Errno); ok && e.Temporary() {
 					continue
 				}
-				feed(GenlMessage{Error: err})
-				return
-			} else if bufN > len(buf) {
-				feed(GenlMessage{Error: fmt.Errorf("msg trunc")})
-				return
+				break
 			} else if msgs, err := syscall.ParseNetlinkMessage(buf[:bufN]); err != nil {
-				feed(GenlMessage{Error: err})
-				return
+				break
 			} else {
 				for _, msg := range msgs {
-					switch msg.Header.Type {
-					default:
-						feed(GenlMessage{
-							Header:  msg.Header,
-							Family:  self.familyIds[msg.Header.Type].Name,
-							Genl:    (*GenlMsghdr)(unsafe.Pointer(&msg.Data[0])),
-							Payload: msg.Data[GENL_HDRLEN:],
-						})
-					case syscall.NLMSG_ERROR:
-						err := *(*syscall.NlMsgerr)(unsafe.Pointer(&msg.Data[0]))
-						feed(GenlMessage{
-							Header: msg.Header,
-							Error:  MsgError{In: err},
-						})
-					case syscall.NLMSG_DONE:
-						feed(GenlMessage{
-							Header:  msg.Header,
-							Genl:    nil,
-							Payload: msg.Data,
-						})
+					self.lock.Lock()
+					family := self.familyIds[msg.Header.Type]
+					var multi []GenlListener
+					for gkey, s := range self.multicast {
+						if family.Name == gkey.Family {
+							multi = append(multi, s...)
+						}
+					}
+					self.lock.Unlock()
+
+					gmsg := GenlMessage{
+						NetlinkMessage: msg,
+						Family:         family,
+					}
+					if msg.Header.Seq == self.uniseq {
+						self.unicast.GenlListen(gmsg)
+						switch msg.Header.Type {
+						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
+							self.unilock.Unlock()
+						}
+					}
+					if msg.Header.Seq == 0 {
+						for _, proc := range multi {
+							proc.GenlListen(gmsg)
+						}
 					}
 				}
 			}
 		}
+		log.Print("genl hub loop exit")
 	}()
-
-	self.Add("nlctrl", "notify", self)
-	if res, err := self.Request("nlctrl", CTRL_VERSION, CTRL_CMD_GETFAMILY, syscall.NLM_F_DUMP, nil, nil); err != nil {
-		return nil, err
-	} else {
-		for _, r := range res {
-			self.GenlListen(r)
-		}
-	}
 	return self, nil
 }
 
@@ -234,110 +169,74 @@ func (self GenlHub) Close() {
 	NlSocketFree(self.sock)
 }
 
-func (self GenlHub) GenlListen(msg GenlMessage) {
-	if msg.Header.Type != GENL_ID_CTRL {
-		return
-	}
-	family := GenlFamily{}
-	groups := make(map[uint32]GenlGroup)
-	if attrs, err := CtrlPolicy.Parse(msg.Payload); err != nil {
-		log.Print(err)
-	} else if amap, ok := attrs.(AttrMap); !ok {
-		fmt.Printf("unknown genl family structure %v", attrs)
-	} else {
-		family.FromAttrs(amap)
-
-		familyName := func() string {
-			self.lock.Lock()
-			defer self.lock.Unlock()
-			if f, ok := self.familyIds[family.Id]; ok {
-				return f.Name
-			}
-			return family.Name
-		}()
-		if grps := amap.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
-			for _, grp := range grps.(AttrSlice).Slice() {
-				gattr := grp.Value.(AttrMap)
-				key := uint32(gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(U32))
-				groups[key] = GenlGroup{
-					Id:     key,
-					Family: familyName,
-					Name:   string(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(NulString)),
-				}
-			}
-		}
-	}
+func (self *GenlHub) Async(msg GenlMessage, listener GenlListener) error {
+	self.unilock.Lock()
 
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	switch msg.Genl.Cmd {
-	case CTRL_CMD_NEWFAMILY:
-		self.familyIds[family.Id] = family
-		fallthrough
-	case CTRL_CMD_NEWMCAST_GRP:
-		for _, grp := range groups {
-			if _, exists := self.groupIds[grp.Id]; !exists {
-				self.groupIds[grp.Id] = grp
-			}
-		}
-	case CTRL_CMD_DELFAMILY:
-		delete(self.familyIds, family.Id)
-		fallthrough
-	case CTRL_CMD_DELMCAST_GRP:
-		for _, grp := range groups {
-			if _, exists := self.groupIds[grp.Id]; exists {
-				delete(self.groupIds, grp.Id)
-			}
-		}
+	self.unicast = listener
+	self.uniseq = self.sock.SeqNext
+	hdr := msg.Header
+
+	if err := NlSendSimple(self.sock, hdr.Type, hdr.Flags, msg.Data); err != nil {
+		self.unilock.Unlock()
+		return err
 	}
-	self.sync()
+	return nil
 }
 
-func (self GenlHub) Request(family string, version uint8, cmd uint8, flags uint16, payload []byte, attr AttrList) ([]GenlMessage, error) {
-	var familyInfo GenlFamily
-	familyInfoMiss := true
-	self.lock.Lock()
-	for _, f := range self.familyIds {
-		if f.Name == family {
-			familyInfo = f
-			familyInfoMiss = false
-		}
-	}
-	self.lock.Unlock()
-	if familyInfoMiss {
-		return nil, fmt.Errorf("family %s not found", family)
-	}
+type genlHubCapture struct {
+	Msgs []GenlMessage
+}
 
-	res := make(chan GenlMessage)
+func (self *genlHubCapture) GenlListen(msg GenlMessage) {
+	self.Msgs = append(self.Msgs, msg)
+}
 
-	msg := make([]byte, GENL_HDRLEN+NLMSG_ALIGN(int(familyInfo.Hdrsize)))
-	*(*GenlMsghdr)(unsafe.Pointer(&msg[0])) = GenlMsghdr{
-		Cmd:     cmd,
-		Version: version,
+func (self *GenlHub) Sync(msg GenlMessage) ([]GenlMessage, error) {
+	cap := &genlHubCapture{}
+	if err := self.Async(msg, cap); err != nil {
+		return nil, err
+	} else {
+		self.unilock.Lock() // wait for unicast processing
+		defer self.unilock.Unlock()
+		return cap.Msgs, nil
 	}
-	copy(msg[GENL_HDRLEN:], payload)
-	if attr != nil {
-		msg = append(msg, attr.Bytes()...)
-	}
+}
 
-	if err := func() error {
+func (self GenlHub) GenlListen(msg GenlMessage) {
+	if msg.Header.Type != GENL_ID_CTRL {
+		return
+	}
+	if family, groups, err := GenlCtrl(GenlFamilyCtrl).Parse(msg); err != nil {
+		log.Print(err)
+	} else {
 		self.lock.Lock()
 		defer self.lock.Unlock()
-		self.unicast[self.sock.SeqNext] = res
-		if err := NlSendSimple(self.sock, familyInfo.Id, flags, msg); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return nil, err
-	}
 
-	var ret []GenlMessage
-	for r := range res {
-		ret = append(ret, r)
+		switch msg.Genl().Cmd {
+		case CTRL_CMD_NEWFAMILY:
+			self.familyIds[family.Id] = family
+			fallthrough
+		case CTRL_CMD_NEWMCAST_GRP:
+			for _, grp := range groups {
+				if _, exists := self.groupIds[grp.Id]; !exists {
+					self.groupIds[grp.Id] = grp
+				}
+			}
+		case CTRL_CMD_DELFAMILY:
+			delete(self.familyIds, family.Id)
+			fallthrough
+		case CTRL_CMD_DELMCAST_GRP:
+			for _, grp := range groups {
+				if _, exists := self.groupIds[grp.Id]; exists {
+					delete(self.groupIds, grp.Id)
+				}
+			}
+		}
+		self.sync()
 	}
-	return ret, nil
 }
 
 // Add adds a GenlListener to GenlHub.
@@ -365,4 +264,77 @@ func (self GenlHub) Remove(family, group string, listener GenlListener) error {
 	}
 	self.multicast[key] = active
 	return self.sync()
+}
+
+type familyListener struct {
+	name string
+	done GenlFamily
+}
+
+func (self *familyListener) GenlListen(msg GenlMessage) {
+	switch msg.Header.Type {
+	case GENL_ID_CTRL:
+		if family, _, err := GenlCtrl(GenlFamilyCtrl).Parse(msg); err != nil {
+			log.Print(err)
+		} else if family.Name == self.name {
+			self.done = family
+		}
+	}
+}
+
+// Family waits for genl family loading. Make sure loading that module by modprobe or by other means.
+func (self *GenlHub) Family(name string) GenlFamily {
+	cap := &familyListener{name: name}
+	self.Add("nlctrl", "notify", cap)
+	defer self.Remove("nlctrl", "notify", cap)
+
+	for _, f := range self.familyIds {
+		if f.Name == name {
+			return f
+		}
+	}
+	if err := self.Async(GenlFamilyCtrl.DumpRequest(CTRL_CMD_GETFAMILY), cap); err != nil {
+		log.Print(err)
+	} else {
+		self.unilock.Lock() // wait for unicast processing done.
+		defer self.unilock.Unlock()
+	}
+	return cap.done
+}
+
+type GenlCtrl GenlFamily
+
+func (self GenlCtrl) Parse(msg GenlMessage) (GenlFamily, []GenlGroup, error) {
+	var ret GenlFamily
+	if attrs, err := CtrlPolicy.Parse(msg.Body()); err != nil {
+		return ret, nil, err
+	} else if amap, ok := attrs.(AttrMap); !ok {
+		return ret, nil, fmt.Errorf("genl ctrl policy parse error")
+	} else {
+		if t := amap.Get(CTRL_ATTR_FAMILY_ID); t != nil {
+			ret.Id = uint16(t.(U16))
+		}
+		if t := amap.Get(CTRL_ATTR_FAMILY_NAME); t != nil {
+			ret.Name = string(t.(NulString))
+		}
+		if t := amap.Get(CTRL_ATTR_VERSION); t != nil {
+			ret.Version = uint8(uint32(t.(U32)))
+		}
+		if t := amap.Get(CTRL_ATTR_HDRSIZE); t != nil {
+			ret.Hdrsize = uint32(t.(U32))
+		}
+		var groups []GenlGroup
+		if grps := amap.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
+			for _, grp := range grps.(AttrSlice).Slice() {
+				gattr := grp.Value.(AttrMap)
+				key := uint32(gattr.Get(CTRL_ATTR_MCAST_GRP_ID).(U32))
+				groups = append(groups, GenlGroup{
+					Id:     key,
+					Family: ret.Name,
+					Name:   string(gattr.Get(CTRL_ATTR_MCAST_GRP_NAME).(NulString)),
+				})
+			}
+		}
+		return ret, groups, nil
+	}
 }

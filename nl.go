@@ -547,14 +547,3 @@ func NlCompleteMsg(sk *NlSock, msg []byte) {
 		hdr.Flags |= syscall.NLM_F_ACK
 	}
 }
-
-// MsgError is a wrapper for NlMsgerr implementing error.
-type MsgError struct {
-	In syscall.NlMsgerr
-}
-
-func (self MsgError) Error() string {
-	return fmt.Sprintf("NlMsgerr{ Error=%d, Msg=%v }",
-		self.In.Error,
-		self.In.Msg)
-}

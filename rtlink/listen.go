@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/hkwi/nlgo"
 	"syscall"
-	"unsafe"
 )
 
 type Listener struct {
@@ -43,6 +42,10 @@ type Message struct {
 	Attrs nlgo.NlaValue
 }
 
+func (self *Listener) Close() {
+	nlgo.NlSocketFree(self.sock)
+}
+
 // Recv returns RTM_NEWLINK, RTM_DELLINK sequence in system call including initial dump.
 func (self *Listener) Recv() ([]Message, error) {
 	buf := make([]byte, syscall.Getpagesize())
@@ -68,7 +71,7 @@ func (self *Listener) Recv() ([]Message, error) {
 				case syscall.NLMSG_NOOP:
 					return nil, fmt.Errorf("should not happen: NLMSG_NOOP")
 				case syscall.NLMSG_ERROR:
-					nle := (*syscall.NlMsgerr)(unsafe.Pointer(&msg.Data[0]))
+					nle := NlMsgerr(msg).Payload()
 					if nle.Error == 0 { // 0 for "ACK"
 						return nil, fmt.Errorf("should not happen: ACK/NLMSG_ERROR")
 					} else {
@@ -77,12 +80,13 @@ func (self *Listener) Recv() ([]Message, error) {
 				case syscall.NLMSG_DONE:
 					return ret, nil
 				case syscall.RTM_NEWLINK, syscall.RTM_DELLINK:
-					if attrs, err := nlgo.RouteLinkPolicy.Parse(msg.Data[nlgo.NLMSG_ALIGN(syscall.SizeofIfInfomsg):]); err != nil {
+					info := IfInfoMessage(msg)
+					if attrs, err := info.Attrs(); err != nil {
 						return nil, err
 					} else {
 						ret = append(ret, Message{
 							Header:    msg.Header,
-							IfInfomsg: *(*syscall.IfInfomsg)(unsafe.Pointer(&msg.Data[0])),
+							IfInfomsg: info.IfInfo(),
 							Attrs:     attrs,
 						})
 					}

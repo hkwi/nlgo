@@ -5,15 +5,19 @@ import (
 	"fmt"
 	"github.com/hkwi/nlgo"
 	"syscall"
-	"unsafe"
 )
 
 func GetByName(hub *nlgo.RtHub, name string) (syscall.IfInfomsg, error) {
 	var ret syscall.IfInfomsg
-	if msgs, err := hub.Request(
-		syscall.RTM_GETLINK,
-		syscall.NLM_F_REQUEST,
-		nil,
+
+	req := &syscall.NetlinkMessage{
+		Header: syscall.NlMsghdr{
+			Type:  syscall.RTM_GETLINK,
+			Flags: syscall.NLM_F_REQUEST,
+		},
+	}
+	(*nlgo.IfInfoMessage)(req).Set(
+		syscall.IfInfomsg{},
 		nlgo.AttrSlice{
 			nlgo.Attr{
 				Header: syscall.NlAttr{
@@ -21,20 +25,19 @@ func GetByName(hub *nlgo.RtHub, name string) (syscall.IfInfomsg, error) {
 				},
 				Value: nlgo.NulString(name),
 			},
-		},
-	); err != nil {
+		})
+
+	if msgs, err := hub.Request(*req); err != nil {
 		return ret, err
 	} else {
 		for _, msg := range msgs {
-			if msg.Error != nil {
-				continue
-			}
-			switch msg.Message.Header.Type {
+			switch msg.Header.Type {
 			case syscall.RTM_NEWLINK:
-				if attrs, err := nlgo.RouteLinkPolicy.Parse(msg.Message.Data[nlgo.NLMSG_ALIGN(syscall.SizeofIfInfomsg):]); err != nil {
+				info := (nlgo.IfInfoMessage)(msg)
+				if attrs, err := info.Attrs(); err != nil {
 					continue
 				} else if string(attrs.(nlgo.AttrMap).Get(syscall.IFLA_IFNAME).(nlgo.NulString)) == name {
-					return *(*syscall.IfInfomsg)(unsafe.Pointer(&msg.Message.Data[0])), nil
+					return info.IfInfo(), nil
 				}
 			}
 		}
@@ -43,24 +46,27 @@ func GetByName(hub *nlgo.RtHub, name string) (syscall.IfInfomsg, error) {
 }
 
 func GetNameByIndex(hub *nlgo.RtHub, index int) (string, error) {
-	if msgs, err := hub.Request(
-		syscall.RTM_GETLINK,
-		syscall.NLM_F_REQUEST,
-		(*[syscall.SizeofIfInfomsg]byte)(unsafe.Pointer(&syscall.IfInfomsg{
+	req := &syscall.NetlinkMessage{
+		Header: syscall.NlMsghdr{
+			Type:  syscall.RTM_GETLINK,
+			Flags: syscall.NLM_F_REQUEST,
+		},
+	}
+	(*nlgo.IfInfoMessage)(req).Set(
+		syscall.IfInfomsg{
 			Index: int32(index),
-		}))[:],
-		nil,
-	); err != nil {
+		},
+		nil)
+
+	if msgs, err := hub.Request(*req); err != nil {
 		return "", err
 	} else {
 		for _, msg := range msgs {
-			if msg.Error != nil {
-				continue
-			}
-			switch msg.Message.Header.Type {
+			switch msg.Header.Type {
 			case syscall.RTM_NEWLINK:
-				if (*syscall.IfInfomsg)(unsafe.Pointer(&msg.Message.Data[0])).Index == int32(index) {
-					if attrs, err := nlgo.RouteLinkPolicy.Parse(msg.Message.Data[nlgo.NLMSG_ALIGN(syscall.SizeofIfInfomsg):]); err != nil {
+				info := (nlgo.IfInfoMessage)(msg)
+				if info.IfInfo().Index == int32(index) {
+					if attrs, err := info.Attrs(); err != nil {
 						return "", err
 					} else {
 						return string(attrs.(nlgo.AttrMap).Get(syscall.IFLA_IFNAME).(nlgo.NulString)), nil

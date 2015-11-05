@@ -3,35 +3,32 @@
 package nlgo
 
 import (
-	"fmt"
+	"log"
 	"sync"
 	"syscall"
 )
 
-type RtMessage struct {
-	Message  syscall.NetlinkMessage
-	Controls []syscall.SocketControlMessage
-	Error    error
-}
-
-type RtListener interface {
-	RtListen(RtMessage)
+type NetlinkListener interface {
+	NetlinkListen(syscall.NetlinkMessage)
 }
 
 // RtHub is a high layer thread-safe API, which is not present in libnl.
+// RtHub is useful for listening to kernel event notification.
 type RtHub struct {
 	sock      *NlSock
 	lock      *sync.Mutex
-	unicast   map[uint32]chan RtMessage
-	multicast map[uint32][]RtListener
+	unilock   *sync.Mutex
+	uniseq    uint32
+	unicast   NetlinkListener
+	multicast map[uint32][]NetlinkListener
 }
 
 func NewRtHub() (*RtHub, error) {
 	self := &RtHub{
 		sock:      NlSocketAlloc(),
 		lock:      &sync.Mutex{},
-		unicast:   make(map[uint32]chan RtMessage),
-		multicast: make(map[uint32][]RtListener),
+		unilock:   &sync.Mutex{},
+		multicast: make(map[uint32][]NetlinkListener),
 	}
 	if err := NlConnect(self.sock, syscall.NETLINK_ROUTE); err != nil {
 		NlSocketFree(self.sock)
@@ -39,65 +36,43 @@ func NewRtHub() (*RtHub, error) {
 	}
 	go func() {
 		for {
-			var merr error
-			var messages []syscall.NetlinkMessage
-			var controls []syscall.SocketControlMessage
-
 			buf := make([]byte, syscall.Getpagesize())
-			oob := make([]byte, syscall.Getpagesize())
-			if bufN, oobN, _, _, err := syscall.Recvmsg(self.sock.Fd, buf, oob, syscall.MSG_TRUNC); err != nil {
+			if n, _, err := syscall.Recvfrom(self.sock.Fd, buf, syscall.MSG_TRUNC); err != nil {
 				if e, ok := err.(syscall.Errno); ok && e.Temporary() {
 					continue
 				}
-				merr = err
-			} else if bufN == 0 {
 				break
-			} else if bufN > len(buf) {
-				merr = err
-			} else if oobN > len(oob) {
-				merr = err
-			} else if msgs, err := syscall.ParseNetlinkMessage(buf[:bufN]); err != nil {
-				merr = err
-			} else if ctrls, err := syscall.ParseSocketControlMessage(oob[:oobN]); err != nil {
-				merr = err
+			} else if msgs, err := syscall.ParseNetlinkMessage(buf[:n]); err != nil {
+				break
 			} else {
-				messages = msgs
-				controls = ctrls
-			}
-			for _, message := range messages {
-				msg := RtMessage{
-					Message:  message,
-					Controls: controls,
-					Error:    merr,
-				}
-				seq := message.Header.Seq
-				mtype := message.Header.Type
-				if seq == 0 {
-					var listeners []RtListener
-					self.lock.Lock()
-					for _, s := range self.multicast {
-						listeners = append(listeners, s...)
-					}
-					self.lock.Unlock()
+				for _, msg := range msgs {
+					multi := func() []NetlinkListener {
+						self.lock.Lock()
+						defer self.lock.Unlock()
 
-					for _, listener := range listeners {
-						listener.RtListen(msg)
-					}
-				} else {
-					self.lock.Lock()
-					listener := self.unicast[seq]
-					self.lock.Unlock()
+						var ret []NetlinkListener
+						for _, s := range self.multicast {
+							ret = append(ret, s...)
+						}
+						return ret
+					}()
 
-					if listener != nil {
-						listener <- msg
-						if mtype == syscall.NLMSG_DONE || mtype == syscall.NLMSG_ERROR {
-							delete(self.unicast, seq)
-							close(listener)
+					if msg.Header.Seq == self.uniseq {
+						self.unicast.NetlinkListen(msg)
+						switch msg.Header.Type {
+						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
+							self.unilock.Unlock()
+						}
+					}
+					if msg.Header.Seq == 0 {
+						for _, proc := range multi {
+							proc.NetlinkListen(msg)
 						}
 					}
 				}
 			}
 		}
+		log.Print("rt hub loop exit")
 	}()
 	return self, nil
 }
@@ -106,52 +81,44 @@ func (self RtHub) Close() {
 	NlSocketFree(self.sock)
 }
 
-func (self RtHub) Request(cmd uint16, flags uint16, payload []byte, attr AttrList) ([]RtMessage, error) {
-	res := make(chan RtMessage)
+// netlink message header will be reparsed.
+func (self RtHub) Async(msg syscall.NetlinkMessage, listener NetlinkListener) error {
+	self.unilock.Lock()
+	self.unicast = listener
+	self.uniseq = self.sock.SeqNext
 
-	var msg []byte
-	switch cmd {
-	case syscall.RTM_NEWLINK, syscall.RTM_DELLINK, syscall.RTM_GETLINK, syscall.RTM_SETLINK:
-		msg = make([]byte, NLMSG_ALIGN(syscall.SizeofIfInfomsg))
-	case syscall.RTM_NEWADDR, syscall.RTM_DELADDR, syscall.RTM_GETADDR:
-		msg = make([]byte, NLMSG_ALIGN(syscall.SizeofIfAddrmsg))
-	case syscall.RTM_NEWROUTE, syscall.RTM_DELROUTE, syscall.RTM_GETROUTE,
-		syscall.RTM_NEWRULE, syscall.RTM_DELRULE, syscall.RTM_GETRULE:
-		msg = make([]byte, NLMSG_ALIGN(syscall.SizeofRtMsg))
-	case syscall.RTM_NEWNEIGH, syscall.RTM_DELNEIGH, syscall.RTM_GETNEIGH:
-		msg = make([]byte, NLMSG_ALIGN(SizeofNdmsg))
-	case syscall.RTM_NEWQDISC, syscall.RTM_DELQDISC, syscall.RTM_GETQDISC,
-		syscall.RTM_NEWTCLASS, syscall.RTM_DELTCLASS, syscall.RTM_GETTCLASS,
-		syscall.RTM_NEWTFILTER, syscall.RTM_DELTFILTER, syscall.RTM_GETTFILTER:
-		msg = make([]byte, NLMSG_ALIGN(SizeofTcmsg))
-	default:
-		close(res)
-		return nil, fmt.Errorf("unsupported")
+	hdr := msg.Header
+	if err := NlSendSimple(self.sock, hdr.Type, hdr.Flags, msg.Data); err != nil {
+		self.unilock.Unlock()
+		return err
 	}
-	copy(msg, payload)
-	if attr != nil {
-		msg = append(msg, attr.Bytes()...)
-	}
+	return nil
+}
 
-	self.lock.Lock()
-	self.unicast[self.sock.SeqNext] = res
-	self.lock.Unlock()
+type hubCapture struct {
+	Msgs []syscall.NetlinkMessage
+}
 
-	if err := NlSendSimple(self.sock, cmd, flags, msg); err != nil {
+func (self *hubCapture) NetlinkListen(msg syscall.NetlinkMessage) {
+	self.Msgs = append(self.Msgs, msg)
+}
+
+func (self RtHub) Sync(msg syscall.NetlinkMessage) ([]syscall.NetlinkMessage, error) {
+	cap := &hubCapture{}
+	if err := self.Async(msg, cap); err != nil {
 		return nil, err
-	}
+	} else {
+		self.unilock.Lock() // waits for unlock, which means response arrival.
+		defer self.unilock.Unlock()
 
-	var ret []RtMessage
-	for r := range res {
-		ret = append(ret, r)
+		return cap.Msgs, nil
 	}
-	return ret, nil
 }
 
 // Add adds a listener to the hub.
 // listener will recieve all of the rtnetlink events, regardless of their group registration.
 // If you want to split it, then use separate RtHub.
-func (self RtHub) Add(group uint32, listener RtListener) error {
+func (self RtHub) Add(group uint32, listener NetlinkListener) error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
@@ -164,11 +131,11 @@ func (self RtHub) Add(group uint32, listener RtListener) error {
 	return nil
 }
 
-func (self RtHub) Remove(group uint32, listener RtListener) error {
+func (self RtHub) Remove(group uint32, listener NetlinkListener) error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	var active []RtListener
+	var active []NetlinkListener
 	for _, li := range self.multicast[group] {
 		if li != listener {
 			active = append(active, li)
