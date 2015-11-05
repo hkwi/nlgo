@@ -82,7 +82,7 @@ func (self RtHub) Close() {
 }
 
 // netlink message header will be reparsed.
-func (self RtHub) Async(msg syscall.NetlinkMessage, listener NetlinkListener) error {
+func (self *RtHub) Async(msg syscall.NetlinkMessage, listener NetlinkListener) error {
 	self.unilock.Lock()
 	self.unicast = listener
 	self.uniseq = self.sock.SeqNext
@@ -103,7 +103,7 @@ func (self *hubCapture) NetlinkListen(msg syscall.NetlinkMessage) {
 	self.Msgs = append(self.Msgs, msg)
 }
 
-func (self RtHub) Sync(msg syscall.NetlinkMessage) ([]syscall.NetlinkMessage, error) {
+func (self *RtHub) Sync(msg syscall.NetlinkMessage) ([]syscall.NetlinkMessage, error) {
 	cap := &hubCapture{}
 	if err := self.Async(msg, cap); err != nil {
 		return nil, err
