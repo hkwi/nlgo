@@ -162,7 +162,9 @@ func NewGenlHub() (*GenlHub, error) {
 						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
 							self.unilock.Unlock()
 						}
-						unicast.GenlListen(gmsg)
+						if unicast != nil {
+							unicast.GenlListen(gmsg)
+						}
 					}
 					if msg.Header.Seq == 0 {
 						for _, proc := range multi {

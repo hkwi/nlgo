@@ -62,7 +62,9 @@ func NewRtHub() (*RtHub, error) {
 						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
 							self.unilock.Unlock()
 						}
-						unicast.NetlinkListen(msg)
+						if unicast != nil {
+							unicast.NetlinkListen(msg)
+						}
 					}
 					if msg.Header.Seq == 0 {
 						for _, proc := range multi {
