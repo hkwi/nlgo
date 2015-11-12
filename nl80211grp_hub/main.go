@@ -31,7 +31,7 @@ func main() {
 		panic(e1)
 	}
 	nl80211 := ghub.Family("nl80211")
-	
+
 	msgs, e2 := ghub.Sync(nlgo.GenlFamilyCtrl.DumpRequest(nlgo.CTRL_CMD_GETFAMILY))
 	if e2 != nil {
 		panic(e2)
@@ -56,7 +56,7 @@ func main() {
 			}
 		}
 	}
-	
+
 	if err := ghub.Async(nl80211.DumpRequest(nlgo.NL80211_CMD_GET_WIPHY), cap); err != nil {
 		panic(err)
 	}

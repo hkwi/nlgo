@@ -1486,14 +1486,16 @@ var Nl80211Policy MapPolicy = MapPolicy{
 				NL80211_STA_INFO_RX_DROP_MISC:      U64Policy,
 				NL80211_STA_INFO_BEACON_RX:         U64Policy,
 				NL80211_STA_INFO_BEACON_SIGNAL_AVG: U8Policy,
-				NL80211_STA_INFO_TID_STATS: MapPolicy{
-					Prefix: "TID_STATS",
-					Names:  NL80211_TID_STATS_itoa,
-					Rule: map[uint16]Policy{
-						NL80211_TID_STATS_RX_MSDU:         U64Policy,
-						NL80211_TID_STATS_TX_MSDU:         U64Policy,
-						NL80211_TID_STATS_TX_MSDU_RETRIES: U64Policy,
-						NL80211_TID_STATS_TX_MSDU_FAILED:  U64Policy,
+				NL80211_STA_INFO_TID_STATS: ListPolicy{
+					Nested: MapPolicy{
+						Prefix: "TID_STATS",
+						Names:  NL80211_TID_STATS_itoa,
+						Rule: map[uint16]Policy{
+							NL80211_TID_STATS_RX_MSDU:         U64Policy,
+							NL80211_TID_STATS_TX_MSDU:         U64Policy,
+							NL80211_TID_STATS_TX_MSDU_RETRIES: U64Policy,
+							NL80211_TID_STATS_TX_MSDU_FAILED:  U64Policy,
+						},
 					},
 				},
 			},

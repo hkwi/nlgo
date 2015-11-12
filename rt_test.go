@@ -99,12 +99,16 @@ func TestRoute(t *testing.T) {
 	} else {
 		defer hub.Close()
 
-		if msgs, err := hub.Request(
-			syscall.RTM_GETROUTE,
-			syscall.NLM_F_REQUEST,
-			(*[syscall.SizeofRtMsg]byte)(unsafe.Pointer(&syscall.RtMsg{
+		req := syscall.NetlinkMessage{
+			Header: syscall.NlMsghdr{
+				Type:  syscall.RTM_GETROUTE,
+				Flags: syscall.NLM_F_REQUEST,
+			},
+		}
+		(*RtMessage)(&req).Set(
+			syscall.RtMsg{
 				Family: syscall.AF_INET6,
-			}))[:],
+			},
 			AttrSlice{
 				Attr{
 					Header: syscall.NlAttr{
@@ -113,17 +117,19 @@ func TestRoute(t *testing.T) {
 					Value: Binary(net.ParseIP("2001:503:ba3e::2:30").To16()),
 				},
 			},
-		); err != nil {
+		)
+		if msgs, err := hub.Sync(req); err != nil {
 			panic(err)
 		} else {
 			for _, msg := range msgs {
-				if msg.Error != nil {
-					t.Error(msg.Error)
-					continue
-				}
-				switch msg.Message.Header.Type {
+				switch msg.Header.Type {
+				case syscall.NLMSG_ERROR:
+					err := NlMsgerr(msg)
+					if err.Payload().Error != 0 {
+						t.Error(err)
+					}
 				case syscall.RTM_NEWROUTE:
-					if attr, err := RoutePolicy.Parse(msg.Message.Data[NLMSG_ALIGN(syscall.SizeofRtMsg):]); err != nil {
+					if attr, err := RtMessage(msg).Attrs(); err != nil {
 						t.Error(err)
 					} else {
 						t.Log(attr)

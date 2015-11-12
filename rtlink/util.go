@@ -27,7 +27,7 @@ func GetByName(hub *nlgo.RtHub, name string) (syscall.IfInfomsg, error) {
 			},
 		})
 
-	if msgs, err := hub.Request(*req); err != nil {
+	if msgs, err := hub.Sync(*req); err != nil {
 		return ret, err
 	} else {
 		for _, msg := range msgs {
@@ -58,7 +58,7 @@ func GetNameByIndex(hub *nlgo.RtHub, index int) (string, error) {
 		},
 		nil)
 
-	if msgs, err := hub.Request(*req); err != nil {
+	if msgs, err := hub.Sync(*req); err != nil {
 		return "", err
 	} else {
 		for _, msg := range msgs {

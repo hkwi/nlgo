@@ -31,8 +31,10 @@ func (self IfInfoMessage) Attrs() (NlaValue, error) {
 }
 
 func (self *IfInfoMessage) Set(ifinfo syscall.IfInfomsg, attrs AttrList) {
-	var data []byte
-	ext := attrs.Bytes()
+	var data, ext []byte
+	if attrs != nil {
+		ext = attrs.Bytes()
+	}
 	if len(ext) > 0 {
 		data = make([]byte, NLMSG_ALIGN(syscall.SizeofIfInfomsg)+len(ext))
 	} else {

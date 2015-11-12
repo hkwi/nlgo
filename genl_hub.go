@@ -136,7 +136,18 @@ func NewGenlHub() (*GenlHub, error) {
 					var multi []GenlListener
 					for gkey, s := range self.multicast {
 						if family.Name == gkey.Family {
-							multi = append(multi, s...)
+							for _, n := range s {
+								if uniq := func() bool {
+									for _, m := range multi {
+										if m == n {
+											return false
+										}
+									}
+									return true
+								}(); uniq {
+									multi = append(multi, n)
+								}
+							}
 						}
 					}
 					self.lock.Unlock()
@@ -146,11 +157,12 @@ func NewGenlHub() (*GenlHub, error) {
 						Family:         family,
 					}
 					if msg.Header.Seq == self.uniseq {
-						self.unicast.GenlListen(gmsg)
+						unicast := self.unicast
 						switch msg.Header.Type {
 						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
 							self.unilock.Unlock()
 						}
+						unicast.GenlListen(gmsg)
 					}
 					if msg.Header.Seq == 0 {
 						for _, proc := range multi {
@@ -210,7 +222,7 @@ func (self GenlHub) GenlListen(msg GenlMessage) {
 		return
 	}
 	if family, groups, err := GenlCtrl(GenlFamilyCtrl).Parse(msg); err != nil {
-		log.Print(err)
+		log.Printf("genl ctrl msg parse err %v", err)
 	} else {
 		self.lock.Lock()
 		defer self.lock.Unlock()
@@ -275,7 +287,7 @@ func (self *familyListener) GenlListen(msg GenlMessage) {
 	switch msg.Header.Type {
 	case GENL_ID_CTRL:
 		if family, _, err := GenlCtrl(GenlFamilyCtrl).Parse(msg); err != nil {
-			log.Print(err)
+			log.Printf("genl ctrl %v", err)
 		} else if family.Name == self.name {
 			self.done = family
 		}

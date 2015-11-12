@@ -56,13 +56,13 @@ func NewRtHub() (*RtHub, error) {
 						}
 						return ret
 					}()
-
 					if msg.Header.Seq == self.uniseq {
-						self.unicast.NetlinkListen(msg)
+						unicast := self.unicast
 						switch msg.Header.Type {
 						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
 							self.unilock.Unlock()
 						}
+						unicast.NetlinkListen(msg)
 					}
 					if msg.Header.Seq == 0 {
 						for _, proc := range multi {

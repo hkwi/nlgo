@@ -463,32 +463,16 @@ func NlConnect(sk *NlSock, protocol int) error {
 		}
 	}
 	if sk.Local.Pid == 0 { // _nl_socket_is_local_port_unspecified
-		pid := syscall.Getpid()
-
-		var local *syscall.SockaddrNetlink
-		for high := 1023; high > 0; high-- {
-			if next := func() bool {
-				pidLock.Lock()
-				defer pidLock.Unlock()
-				if _, exists := pidUsed[high]; !exists {
-					pidUsed[high] = true
-					return false
-				}
-				return true
-			}(); next {
-				continue
-			}
-
-			local = &syscall.SockaddrNetlink{
-				Pid: uint32((high << 22) | (pid & 0x3FFFFF)),
-			}
-			if err := syscall.Bind(sk.Fd, local); err == nil {
-				break
-			} else if err != syscall.EADDRINUSE {
-				return err
-			} else {
-				local = nil
-			}
+		// kernel will assign Pid
+		local := &syscall.SockaddrNetlink{
+			Family: syscall.AF_NETLINK,
+		}
+		if err := syscall.Bind(sk.Fd, local); err != nil {
+			return err
+		} else if sa, err := syscall.Getsockname(sk.Fd); err != nil {
+			return err
+		} else {
+			local = sa.(*syscall.SockaddrNetlink)
 		}
 		if local == nil {
 			return NLE_EXIST
