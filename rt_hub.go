@@ -57,13 +57,12 @@ func NewRtHub() (*RtHub, error) {
 						return ret
 					}()
 					if msg.Header.Seq == self.uniseq {
-						unicast := self.unicast
+						if self.unicast != nil {
+							self.unicast.NetlinkListen(msg)
+						}
 						switch msg.Header.Type {
 						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
 							self.unilock.Unlock()
-						}
-						if unicast != nil {
-							unicast.NetlinkListen(msg)
 						}
 					}
 					if msg.Header.Seq == 0 {
@@ -83,6 +82,8 @@ func (self RtHub) Close() {
 	NlSocketFree(self.sock)
 }
 
+// Async() submits request with callback. Note that this locks sending request.
+// Calling Async() in GenlListen() may create dead lock.
 // netlink message header will be reparsed.
 func (self *RtHub) Async(msg syscall.NetlinkMessage, listener NetlinkListener) error {
 	self.unilock.Lock()
@@ -105,6 +106,8 @@ func (self *hubCapture) NetlinkListen(msg syscall.NetlinkMessage) {
 	self.Msgs = append(self.Msgs, msg)
 }
 
+// Sync() is synchronous version of Async().
+// Calling Sync() in GenlListen() may create dead lock.
 func (self *RtHub) Sync(msg syscall.NetlinkMessage) ([]syscall.NetlinkMessage, error) {
 	cap := &hubCapture{}
 	if err := self.Async(msg, cap); err != nil {

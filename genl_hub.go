@@ -157,13 +157,12 @@ func NewGenlHub() (*GenlHub, error) {
 						Family:         family,
 					}
 					if msg.Header.Seq == self.uniseq {
-						unicast := self.unicast
+						if self.unicast != nil {
+							self.unicast.GenlListen(gmsg)
+						}
 						switch msg.Header.Type {
 						case syscall.NLMSG_DONE, syscall.NLMSG_ERROR:
 							self.unilock.Unlock()
-						}
-						if unicast != nil {
-							unicast.GenlListen(gmsg)
 						}
 					}
 					if msg.Header.Seq == 0 {
@@ -183,6 +182,8 @@ func (self GenlHub) Close() {
 	NlSocketFree(self.sock)
 }
 
+// Async() submits request with callback. Note that this locks sending request.
+// Calling Async() in GenlListen() may create dead lock.
 func (self *GenlHub) Async(msg GenlMessage, listener GenlListener) error {
 	self.unilock.Lock()
 
@@ -208,6 +209,8 @@ func (self *genlHubCapture) GenlListen(msg GenlMessage) {
 	self.Msgs = append(self.Msgs, msg)
 }
 
+// Sync() is synchronous version of Async().
+// Calling Sync() in GenlListen() may create dead lock.
 func (self *GenlHub) Sync(msg GenlMessage) ([]GenlMessage, error) {
 	cap := &genlHubCapture{}
 	if err := self.Async(msg, cap); err != nil {
