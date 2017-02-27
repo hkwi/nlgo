@@ -504,21 +504,19 @@ const NL_AUTO_SEQ = 0
 
 // NlSendSimple is same with libnl nl_send_simple.
 func NlSendSimple(sk *NlSock, family uint16, flags uint16, buf []byte) error {
-	msg := make([]byte, syscall.NLMSG_HDRLEN+NLMSG_ALIGN(len(buf)))
-	hdr := (*syscall.NlMsghdr)(unsafe.Pointer(&msg[0]))
-	hdr.Type = family
-	hdr.Flags = flags
-	hdr.Len = syscall.NLMSG_HDRLEN + uint32(len(buf))
-	copy(msg[syscall.NLMSG_HDRLEN:], buf)
-	NlCompleteMsg(sk, msg)
-	return syscall.Sendto(sk.Fd, msg, 0, &sk.Peer)
+	return sk.Request(syscall.NetlinkMessage{
+		Header: syscall.NlMsghdr{
+			Len:   syscall.NLMSG_HDRLEN + uint32(len(buf)),
+			Type:  family,
+			Flags: flags,
+		},
+		Data: buf,
+	})
 }
 
 // nl.c
 
-// NlCompleteMsg is same with libnl nl_complete_msg.
-func NlCompleteMsg(sk *NlSock, msg []byte) {
-	hdr := (*syscall.NlMsghdr)(unsafe.Pointer(&msg[0]))
+func completeMsg(sk *NlSock, hdr *syscall.NlMsghdr) {
 	if hdr.Pid == NL_AUTO_PORT {
 		hdr.Pid = sk.Local.Pid
 	}
@@ -530,4 +528,19 @@ func NlCompleteMsg(sk *NlSock, msg []byte) {
 	if sk.Flags&NL_NO_AUTO_ACK == 0 {
 		hdr.Flags |= syscall.NLM_F_ACK
 	}
+}
+
+// NlCompleteMsg is same with libnl nl_complete_msg.
+func NlCompleteMsg(sk *NlSock, msg []byte) {
+	hdr := (*syscall.NlMsghdr)(unsafe.Pointer(&msg[0]))
+	completeMsg(sk, hdr)
+}
+
+func (sk *NlSock) Request(msg syscall.NetlinkMessage) error {
+	completeMsg(sk, &msg.Header)
+	msg.Header.Len = syscall.NLMSG_HDRLEN + uint32(len(msg.Data))
+	buf := make([]byte, syscall.NLMSG_HDRLEN+NLMSG_ALIGN(len(msg.Data)))
+	copy(buf, (*[syscall.NLMSG_HDRLEN]byte)(unsafe.Pointer(&msg.Header))[:])
+	copy(buf[syscall.NLMSG_HDRLEN:], msg.Data)
+	return syscall.Sendto(sk.Fd, buf, 0, &sk.Peer)
 }

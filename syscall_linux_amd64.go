@@ -39,3 +39,14 @@ const (
 	SizeofNdmsg      = 0xc
 	SizeofTcmsg      = 0x14
 )
+
+type NdaCacheinfo struct {
+	Confirmed uint32
+	Used      uint32
+	Updated   uint32
+	Refcnt    uint32
+}
+
+const (
+	SizeofNdaCacheinfo = 0x10
+)

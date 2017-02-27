@@ -25,3 +25,9 @@ const (
 	SizeofNdmsg      = C.sizeof_struct_ndmsg
 	SizeofTcmsg      = C.sizeof_struct_tcmsg
 )
+
+type NdaCacheinfo C.struct_nda_cacheinfo
+
+const (
+	SizeofNdaCacheinfo = C.sizeof_struct_nda_cacheinfo
+)

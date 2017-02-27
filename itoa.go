@@ -103,6 +103,19 @@ var IFLA_PORT_itoa = itoa{
 	IFLA_PORT_RESPONSE:      "RESPONSE",
 }
 
+var NDA_itoa = itoa{
+	NDA_DST:          "DST",
+	NDA_LLADDR:       "LLADDR",
+	NDA_CACHEINFO:    "CACHEINFO",
+	NDA_PROBES:       "PROBES",
+	NDA_VLAN:         "VLAN",
+	NDA_PORT:         "PORT",
+	NDA_VNI:          "VNI",
+	NDA_IFINDEX:      "IFINDEX",
+	NDA_MASTER:       "MASTER",
+	NDA_LINK_NETNSID: "LINK_NETNSID",
+}
+
 var NL80211_CMD_itoa = map[uint8]string{
 	NL80211_CMD_UNSPEC:                     "UNSPEC",
 	NL80211_CMD_GET_WIPHY:                  "GET_WIPHY",

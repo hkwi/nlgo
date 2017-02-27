@@ -234,3 +234,34 @@ var RoutePolicy MapPolicy = MapPolicy{
 		RTA_MFC_STATS: BinaryPolicy,
 	},
 }
+
+const (
+	NDA_UNSPEC = iota
+	NDA_DST
+	NDA_LLADDR
+	NDA_CACHEINFO
+	NDA_PROBES
+	NDA_VLAN
+	NDA_PORT
+	NDA_VNI
+	NDA_IFINDEX
+	NDA_MASTER
+	NDA_LINK_NETNSID
+)
+
+var NeighPolicy = MapPolicy{
+	Prefix: "NDA",
+	Names:  NDA_itoa,
+	Rule: map[uint16]Policy{
+		NDA_DST:          BinaryPolicy,
+		NDA_LLADDR:       BinaryPolicy,
+		NDA_CACHEINFO:    BinaryPolicy, // nda_cacheinfo
+		NDA_PROBES:       U32Policy,
+		NDA_VLAN:         U16Policy,
+		NDA_PORT:         U16Policy,
+		NDA_VNI:          U32Policy,
+		NDA_IFINDEX:      U32Policy,
+		NDA_MASTER:       U32Policy,
+		NDA_LINK_NETNSID: U32Policy,
+	},
+}

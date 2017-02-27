@@ -73,3 +73,23 @@ func (self *RtMessage) Set(rt syscall.RtMsg, attrs AttrList) {
 	}
 	(*syscall.NetlinkMessage)(self).Data = data
 }
+
+type NdMessage syscall.NetlinkMessage
+
+func (self NdMessage) Nd() Ndmsg {
+	msg := syscall.NetlinkMessage(self)
+	return *(*Ndmsg)(unsafe.Pointer(&msg.Data[0]))
+}
+
+func (self NdMessage) Attrs() (NlaValue, error) {
+	msg := syscall.NetlinkMessage(self)
+	return NeighPolicy.Parse(msg.Data[NLMSG_ALIGN(SizeofNdmsg):])
+}
+
+func (self *NdMessage) Set(nd Ndmsg, attrs AttrList) {
+	ext := attrs.Bytes()
+	data := make([]byte, NLMSG_ALIGN(SizeofNdmsg)+len(ext))
+	copy(data, (*[SizeofNdmsg]byte)(unsafe.Pointer(&nd))[:])
+	copy(data[NLMSG_ALIGN(SizeofNdmsg):], ext)
+	(*syscall.NetlinkMessage)(self).Data = data
+}
