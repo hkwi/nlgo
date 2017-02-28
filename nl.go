@@ -113,12 +113,10 @@ const (
 
 func (self SinglePolicy) Parse(nla []byte) (NlaValue, error) {
 	if len(nla) < syscall.SizeofNlAttr {
-		panic("s1")
 		return nil, NLE_RANGE
 	}
 	hdr := (*syscall.NlAttr)(unsafe.Pointer(&nla[0]))
 	if int(hdr.Len) < NLA_HDRLEN || int(hdr.Len) > len(nla) {
-		panic("s2")
 		return nil, NLE_RANGE
 	}
 	attr := Attr{
