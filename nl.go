@@ -9,6 +9,7 @@ package nlgo
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"strings"
 	"sync"
 	"syscall"
@@ -113,11 +114,11 @@ const (
 
 func (self SinglePolicy) Parse(nla []byte) (NlaValue, error) {
 	if len(nla) < syscall.SizeofNlAttr {
-		return nil, NLE_RANGE
+		return nil, errors.Wrap(NLE_RANGE, "len(nla) < syscall.SizeofNlAttr")
 	}
 	hdr := (*syscall.NlAttr)(unsafe.Pointer(&nla[0]))
 	if int(hdr.Len) < NLA_HDRLEN || int(hdr.Len) > len(nla) {
-		return nil, NLE_RANGE
+		return nil, errors.Wrap(NLE_RANGE, "hdr.Len < NLA_HDRLEN")
 	}
 	attr := Attr{
 		Header: *hdr,
