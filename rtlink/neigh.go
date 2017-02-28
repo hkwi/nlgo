@@ -27,6 +27,14 @@ type Ndmsg struct {
 }
 
 func (self *RtSock) neigh(family uint8, opts FdbQuery) ([]Ndmsg, error) {
+	if self == nil {
+		sock, err := Open()
+		if err != nil {
+			return nil, err
+		}
+		defer sock.Close()
+		self = sock
+	}
 	req := nlgo.IfInfoMessage{
 		Header: syscall.NlMsghdr{
 			Type:  syscall.RTM_GETNEIGH,

@@ -416,6 +416,9 @@ func NlSocketAlloc() *NlSock {
 }
 
 func NlSocketFree(sk *NlSock) {
+	if sk == nil {
+		return
+	}
 	if sk.Fd >= 0 {
 		syscall.Close(sk.Fd)
 	}
@@ -434,7 +437,7 @@ func NlSocketSetBufferSize(sk *NlSock, rxbuf, txbuf int) error {
 	if txbuf <= 0 {
 		txbuf = 32768
 	}
-	if sk.Fd == -1 {
+	if sk == nil || sk.Fd == -1 {
 		return NLE_BAD_SOCK
 	}
 	if err := syscall.SetsockoptInt(sk.Fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, txbuf); err != nil {
@@ -449,7 +452,7 @@ func NlSocketSetBufferSize(sk *NlSock, rxbuf, txbuf int) error {
 
 // NlConnect is same with libnl nl_connect. nl_close is required for releaseing internal fd.
 func NlConnect(sk *NlSock, protocol int) error {
-	if sk.Fd != -1 {
+	if sk == nil || sk.Fd != -1 {
 		return NLE_BAD_SOCK
 	}
 	if fd, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, protocol); err != nil {
@@ -489,11 +492,17 @@ func NlConnect(sk *NlSock, protocol int) error {
 
 // NlSocketAddMembership is same with libnl nl_socket_add_membership.
 func NlSocketAddMembership(sk *NlSock, group int) error {
+	if sk == nil {
+		return NLE_BAD_SOCK
+	}
 	return syscall.SetsockoptInt(sk.Fd, SOL_NETLINK, syscall.NETLINK_ADD_MEMBERSHIP, group)
 }
 
 // NlSocketAddMembership is same with libnl nl_socket_drop_membership.
 func NlSocketDropMembership(sk *NlSock, group int) error {
+	if sk == nil {
+		return NLE_BAD_SOCK
+	}
 	return syscall.SetsockoptInt(sk.Fd, SOL_NETLINK, syscall.NETLINK_DROP_MEMBERSHIP, group)
 }
 
