@@ -236,6 +236,13 @@ var RoutePolicy MapPolicy = MapPolicy{
 }
 
 const (
+	RTEXT_FILTER_VF = 1 << iota
+	RTEXT_FILTER_BRVLAN
+	RTEXT_FILTER_BRVLAN_COMPRESSED
+	RTEXT_FILTER_SKIP_STATS
+)
+
+const (
 	NDA_UNSPEC = iota
 	NDA_DST
 	NDA_LLADDR

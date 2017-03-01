@@ -1,4 +1,4 @@
-// rtlink provides RTM_*LINK util
+// rtlink provides NETLINK_ROUTE util
 package rtlink
 
 import (

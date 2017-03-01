@@ -56,7 +56,7 @@ func (self *RtSock) neigh(family uint8, opts FdbQuery) ([]Ndmsg, error) {
 		return nil, err
 	}
 
-	var raws []nlgo.NdMessage
+	var ret []Ndmsg
 	buf := make([]byte, syscall.Getpagesize())
 	do_recv := true
 	for do_recv {
@@ -77,42 +77,39 @@ func (self *RtSock) neigh(family uint8, opts FdbQuery) ([]Ndmsg, error) {
 				case syscall.NLMSG_ERROR:
 					return nil, nlgo.NlMsgerr(msg)
 				default:
-					raws = append(raws, nlgo.NdMessage(msg))
+					raw := nlgo.NdMessage(msg)
+					e := Ndmsg{Header: raw.Nd()}
+					if nlv, err := raw.Attrs(); err != nil {
+						return nil, err
+					} else if attrs, ok := nlv.(nlgo.AttrMap); ok {
+						if v := attrs.Get(nlgo.NDA_DST); v != nil {
+							e.Dst = append([]byte{}, v.(nlgo.Binary)...)
+						}
+						if v := attrs.Get(nlgo.NDA_LLADDR); v != nil {
+							e.Lladdr = append([]byte{}, v.(nlgo.Binary)...)
+						}
+						if v := attrs.Get(nlgo.NDA_CACHEINFO); v != nil {
+							v2 := &nlgo.NdaCacheinfo{}
+							copy((*[nlgo.SizeofNdaCacheinfo]byte)(unsafe.Pointer(v2))[:], v.(nlgo.Binary))
+							e.Cacheinfo = v2
+						}
+						if v := attrs.Get(nlgo.NDA_PROBES); v != nil {
+							e.Probes = uint32(v.(nlgo.U32))
+						}
+						if v := attrs.Get(nlgo.NDA_VLAN); v != nil {
+							e.Vlan = uint16(v.(nlgo.U16))
+						}
+						if v := attrs.Get(nlgo.NDA_IFINDEX); v != nil {
+							e.Ifindex = uint32(v.(nlgo.U32))
+						}
+						if v := attrs.Get(nlgo.NDA_MASTER); v != nil {
+							e.Master = uint32(v.(nlgo.U32))
+						}
+					}
+					ret = append(ret, e)
 				}
 			}
 		}
-	}
-	var ret []Ndmsg
-	for _, raw := range raws {
-		e := Ndmsg{Header: raw.Nd()}
-		if nlv, err := raw.Attrs(); err != nil {
-			return nil, err
-		} else if attrs, ok := nlv.(nlgo.AttrMap); ok {
-			if v := attrs.Get(nlgo.NDA_DST); v != nil {
-				e.Dst = net.IP(v.(nlgo.Binary))
-			}
-			if v := attrs.Get(nlgo.NDA_LLADDR); v != nil {
-				e.Lladdr = net.HardwareAddr(v.(nlgo.Binary))
-			}
-			if v := attrs.Get(nlgo.NDA_CACHEINFO); v != nil {
-				v2 := &nlgo.NdaCacheinfo{}
-				copy((*[nlgo.SizeofNdaCacheinfo]byte)(unsafe.Pointer(v2))[:], v.(nlgo.Binary))
-				e.Cacheinfo = v2
-			}
-			if v := attrs.Get(nlgo.NDA_PROBES); v != nil {
-				e.Probes = uint32(v.(nlgo.U32))
-			}
-			if v := attrs.Get(nlgo.NDA_VLAN); v != nil {
-				e.Vlan = uint16(v.(nlgo.U16))
-			}
-			if v := attrs.Get(nlgo.NDA_IFINDEX); v != nil {
-				e.Ifindex = uint32(v.(nlgo.U32))
-			}
-			if v := attrs.Get(nlgo.NDA_MASTER); v != nil {
-				e.Master = uint32(v.(nlgo.U32))
-			}
-		}
-		ret = append(ret, e)
 	}
 	return ret, nil
 }
