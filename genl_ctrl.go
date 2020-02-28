@@ -35,7 +35,7 @@ func GenlCtrlGrpByName(sk *NlSock, family, group string) (uint32, error) {
 		if grps := attrs.Get(CTRL_ATTR_MCAST_GROUPS); grps != nil {
 			for _, grpc := range grps.(AttrSlice).Slice() {
 				grp := grpc.Value.(AttrMap)
-				if string(grp.Get(CTRL_ATTR_MCAST_GRP_NAME).(String)) == group {
+				if string(grp.Get(CTRL_ATTR_MCAST_GRP_NAME).(NulString)) == group {
 					return uint32(grp.Get(CTRL_ATTR_MCAST_GRP_ID).(U32)), nil
 				}
 			}
@@ -75,7 +75,7 @@ func GenlCtrlProbeByName(sk *NlSock, name string) (AttrMap, error) {
 								// shold not happen
 							} else if value := info.Get(CTRL_ATTR_FAMILY_NAME); value == nil {
 								// should not happen by kernel
-							} else if string(value.(String)) == name {
+							} else if string(value.(NulString)) == name {
 								ret = info
 							}
 						default:
