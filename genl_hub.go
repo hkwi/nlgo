@@ -123,7 +123,8 @@ func NewGenlHub() (*GenlHub, error) {
 		for {
 			buf := make([]byte, syscall.Getpagesize())
 			if bufN, _, err := syscall.Recvfrom(self.sock.Fd, buf, syscall.MSG_TRUNC); err != nil {
-				if e, ok := err.(syscall.Errno); ok && e.Temporary() {
+				if e, ok := err.(syscall.Errno); ok && (e.Temporary() || e == syscall.EINVAL) {
+					log.Printf("[genl_hub_loop] recvfrom fails (tmp error): %v, errno: %v", err, e)
 					continue
 				}
 				break
